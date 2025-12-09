@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "FarmVet",
-    "slug": "newfarmvet",
+    "slug": "newfarmvet-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,7 +36,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "91532150-556a-4d85-9e1d-bc6e9d202348"
+        "projectId": "b168a5f1-907a-486d-9781-962e5006da92"
       }
     },
     "plugins": [
@@ -54,6 +54,6 @@
       ],
       "expo-localization"
     ],
-    "owner": "rajeshsirigiri"
+    "owner": "farmvet"
   }
 }
