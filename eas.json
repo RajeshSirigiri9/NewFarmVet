@@ -18,7 +18,7 @@
     },
     "production": {
       "android": {
-        "buildType": "apk",
+        "buildType": "app-bundle",
         "image": "ubuntu-22.04-jdk-17-ndk-r25b",
         "node": "20.19.4",
         "env": {
