@@ -28,7 +28,7 @@
         "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "package": "com.rajeshsirigiri.RNCourse",
+      "package": "com.rajeshsirigiri.FarmVet",
       "versionCode": 1
     },
     "web": {
@@ -48,7 +48,7 @@
             "targetSdkVersion": 34,
             "minSdkVersion": 24,
             "googleServicesFile": "./google-services.json",
-            "package": "com.rajeshsirigiri.RNCourse"
+            "package": "com.rajeshsirigiri.FarmVet"
           }
         }
       ],
