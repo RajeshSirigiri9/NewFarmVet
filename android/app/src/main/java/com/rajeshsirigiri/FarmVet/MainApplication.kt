@@ -1,4 +1,4 @@
-package com.rajeshsirigiri.RNCourse
+package com.rajeshsirigiri.FarmVet
 
 import android.app.Application
 import android.content.res.Configuration

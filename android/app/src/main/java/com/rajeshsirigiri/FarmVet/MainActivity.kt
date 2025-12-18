@@ -1,4 +1,4 @@
-package com.rajeshsirigiri.RNCourse
+package com.rajeshsirigiri.FarmVet
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.rajeshsirigiri.RNCourse'
+    namespace 'com.rajeshsirigiri.FarmVet'
     defaultConfig {
-        applicationId 'com.rajeshsirigiri.RNCourse'
+        applicationId 'com.rajeshsirigiri.FarmVet'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
