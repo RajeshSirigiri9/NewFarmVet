@@ -110,6 +110,15 @@ const CustomDrawer = ({ isVisible, onClose }) => {
       title: language === 'te' ? 'సంప్రదించండి' : 'Contact Us',
       icon: (color) => <Entypo name="phone" size={22} color={color} />
     },
+        { 
+      name: 'Content', 
+      title: language === 'te' ? 'కొత్త సమాచారం' : 'Learning Content',
+      icon: (color) =>        <MaterialCommunityIcons
+                name="book-open-page-variant"
+                size={28}
+                color="#ffffff"
+              />
+    },
     { 
       name: 'Profile', 
       title: language === 'te' ? 'ప్రొఫైల్' : 'Profile',

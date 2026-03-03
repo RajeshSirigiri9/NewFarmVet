@@ -1,4 +1,6 @@
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '../../constants/styles';
 
@@ -10,20 +12,37 @@ function Input({
   value,
   isInvalid,
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  
+  const isPasswordField = secure;
+  const securePassword = isPasswordField && !showPassword;
+
   return (
     <View style={styles.inputContainer}>
       <Text style={[styles.label, isInvalid && styles.labelInvalid]}>
         {label}
       </Text>
-      <TextInput
-        style={[styles.input, isInvalid && styles.inputInvalid]}
-        // autoCapitalize
-        // autoCapitalize="none"
-        keyboardType={keyboardType}
-        secureTextEntry={secure}
-        onChangeText={onUpdateValue}
-        value={value}
-      />
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={[styles.input, isInvalid && styles.inputInvalid]}
+          keyboardType={keyboardType}
+          secureTextEntry={securePassword}
+          onChangeText={onUpdateValue}
+          value={value}
+        />
+        {isPasswordField && (
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? 'eye' : 'eye-off'}
+              size={24}
+              color="#666"
+            />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -41,7 +60,13 @@ const styles = StyleSheet.create({
   labelInvalid: {
     color: Colors.error500,
   },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
   input: {
+    flex: 1,
     paddingVertical: 8,
     paddingHorizontal: 6,
     backgroundColor: '#c1e2f5',
@@ -50,5 +75,10 @@ const styles = StyleSheet.create({
   },
   inputInvalid: {
     backgroundColor: Colors.error100,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 10,
+    padding: 8,
   },
 });

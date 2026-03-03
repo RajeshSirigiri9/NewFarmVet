@@ -20,6 +20,8 @@ import Contact from "../Contact";
 import FeedBack from "../FeedBack";
 import Profile from "../Profile";
 import Home from "./Welcome";
+import UserContentScreen from "../UserContentScreen";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import IconButton from "../uiCred/IconButton";
 import { ContextProvider } from "../../store/Context";
@@ -28,7 +30,7 @@ import { useLanguage } from "../../store/LanguageProvider";
 
 const Stack = createNativeStackNavigator();
 
-function MyDrawer() {
+function MyDrawer({ navigation }) {
   const { t } = useTranslation();
   const authCtx = useContext(AuthContext);
   const { toggleLanguage, language } = useLanguage();
@@ -66,9 +68,17 @@ function MyDrawer() {
             title: language === "te" ? " స్వాగతం" : "  Welcome",
             headerLeft: () => <HamburgerButton onPress={() => setIsDrawerVisible(true)} />,
             headerRight: ({ tintColor }) => (
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8}}>
                 <IconButton icon="language" color={tintColor} size={24} onPress={toggleLanguage} />
+                  <MaterialCommunityIcons
+                    name="bell-outline"
+                    size={24}
+                    color="#fff"
+                    onPress={() => navigation.navigate("UserNotifications")}
+
+                  />
                 <IconButton icon="exit" color={tintColor} size={24} onPress={handleLogOut} />
+              
               </View>
             ),
           }}
@@ -87,9 +97,10 @@ function MyDrawer() {
         <Stack.Screen name="Publication" component={Publication} options={{ title: language === "te" ? "ప్రచురణలు" : "Publication" }} />
         <Stack.Screen name="FeedBack" component={FeedBack} options={{ title: language === "te" ? "ప్రతిస్పందన" : "FeedBack" }} />
         <Stack.Screen name="Contact" component={Contact} options={{ title: language === "te" ? "సంప్రదించండి" : "Contact Us" }} />
+        <Stack.Screen name="Content" component={UserContentScreen} options={{ title: language === "te" ? "నోటిఫికేషన్లు" : "Notifications" }} />
         <Stack.Screen name="Profile" component={Profile} options={{ title: language === "te" ? "ప్రొఫైల్" : "Profile" }} />
       </Stack.Navigator>
-      </View>
+      </View> 
     </ContextProvider>
   );
 }

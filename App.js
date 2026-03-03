@@ -1,6 +1,7 @@
 import "./localization/i18n";
+import "./config"; // Initialize Firebase first
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Button, Alert } from "react-native";
+import { StyleSheet, Button, Alert, TouchableOpacity } from "react-native";
 import { useState, useEffect, useContext, useCallback } from "react";
 
 import { NavigationContainer } from "@react-navigation/native";
@@ -42,15 +43,18 @@ import OrganicDairy from "./components/CattleAndDairy/OrganicDairy";
 import PreventiveHealthCare from "./components/CattleAndDairy/PreventiveHealthCare";
 import SelectionOfGoodAnimals from "./components/CattleAndDairy/SelectionOfGoodAnimals";
 import WallowingTank from "./components/CattleAndDairy/WallowingTank";
+import AdminPanel from "./components/admin/AdminPanel";
+import UserNotifications from "./components/UserNotifications";
+import UserContentScreen from "./components/UserContentScreen";
 import LoginScreen from "./loginCred/LoginScreen";
 import SignupScreen from "./loginCred/SignupScreen";
 import Colors from "./components/constants/Colors";
 import AuthContextProvider, { AuthContext } from "./store/auth-context.js";
 import * as SplashScreen from "expo-splash-screen";
 import { LanguageProvider } from "./store/LanguageProvider";
-
+import { Entypo } from "@expo/vector-icons";
+import ContentManager from "./components/admin/ContentManager.js";
 const Stack = createNativeStackNavigator();
-
 // SplashScreen.preventAutoHideAsync();
 
 function AuthStack() {
@@ -318,6 +322,30 @@ function AuthenticatedStack() {
           title: "",
         }}
       />
+      <Stack.Screen
+        name="AdminPanel"
+        component={AdminPanel}
+        options={{
+          title: "Admin Panel",
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="UserNotifications"
+        component={UserNotifications}
+        options={{
+          title: "",
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="Content"
+        component={UserContentScreen}
+        options={{
+          title: "",
+          headerShown: true,
+        }}
+      />
     </Stack.Navigator>
   );
 }
@@ -355,9 +383,35 @@ function Root() {
 
     async function fetchToken() {
       const storedToken = await AsyncStorage.getItem("token");
+      const storedUid = await AsyncStorage.getItem("uid");
 
-      if (storedToken) {
-        authCtx.authenticate(storedToken);
+      if (storedToken && storedUid) {
+        authCtx.authenticate(storedToken, storedUid);
+        
+        // Restore user data from AsyncStorage
+        try {
+          const storedUserData = await AsyncStorage.getItem("userData");
+          if (storedUserData) {
+            authCtx.setUserData(JSON.parse(storedUserData));
+          }
+          
+          const storedDisplayName = await AsyncStorage.getItem("displayName");
+          if (storedDisplayName) {
+            authCtx.LoginNameSetter(storedDisplayName);
+          }
+          
+          const storedPhoneNumber = await AsyncStorage.getItem("phoneNumber");
+          if (storedPhoneNumber) {
+            authCtx.phoneNumberSetter(storedPhoneNumber);
+          }
+          
+          const storedEmail = await AsyncStorage.getItem("userEmail");
+          if (storedEmail) {
+            authCtx.mailsetter(storedEmail);
+          }
+        } catch (error) {
+          console.log("Error restoring user data:", error.message);
+        }
       }
 
       setIsTryingLogin(false);

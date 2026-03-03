@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const AuthContext = createContext({
   token: "",
   isAuthenticated: false,
-  authenticate: (token) => {},
+  authenticate: (token, uid) => {},
   logout: () => {},
   Gmail: "",
   mailsetter: (Gmail) => {},
@@ -12,22 +12,39 @@ export const AuthContext = createContext({
   LoginNameSetter: (otpLoginName) => {},
   phoneNumber: "",
   phoneNumberSetter: (phoneNumber) => {},
+  uid: "",
+  userData: null,
+  setUserData: (userData) => {},
 });
 
 function AuthContextProvider({ children }) {
   const [authToken, setAuthToken] = useState();
+  const [uid, setUid] = useState();
   const [mail, setMail] = useState();
   const [loginName, setLoginName] = useState();
   const [phone, setPhone] = useState();
+  const [userData, setUserData] = useState(null);
 
-  function authenticate(token) {
+  function authenticate(token, userId) {
     setAuthToken(token);
+    setUid(userId);
     AsyncStorage.setItem("token", token);
+    AsyncStorage.setItem("uid", userId);
   }
 
   function logout() {
     setAuthToken(null);
+    setUid(null);
+    setUserData(null);
+    setMail(null);
+    setLoginName(null);
+    setPhone(null);
     AsyncStorage.removeItem("token");
+    AsyncStorage.removeItem("uid");
+    AsyncStorage.removeItem("userData");
+    AsyncStorage.removeItem("displayName");
+    AsyncStorage.removeItem("phoneNumber");
+    AsyncStorage.removeItem("userEmail");
   }
 
   function mailsetter(Gmail) {
@@ -44,6 +61,7 @@ function AuthContextProvider({ children }) {
 
   const value = {
     token: authToken,
+    uid: uid,
     isAuthenticated: !!authToken,
     authenticate: authenticate,
     logout: logout,
@@ -53,6 +71,8 @@ function AuthContextProvider({ children }) {
     LoginNameSetter: LoginNameSetter,
     phoneNumber: phone,
     phoneNumberSetter: phoneNumberSetter,
+    userData: userData,
+    setUserData: setUserData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

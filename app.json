@@ -29,7 +29,7 @@
         "android.permission.ACCESS_NETWORK_STATE"
       ],
       "package": "com.newfarmvet.app",
-      "versionCode": 2
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/favicon.png"

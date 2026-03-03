@@ -8,11 +8,13 @@ import {
   Text,
   TextInput,
   View,
+  TouchableOpacity,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useLayoutEffect, useState } from "react";
 import {
   PlayfairDisplay_400Regular,
   PlayfairDisplay_400Regular_Italic,
@@ -29,8 +31,8 @@ import {
   useFonts,
 } from "@expo-google-fonts/playfair-display";
 import * as SplashScreen from "expo-splash-screen";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
 
 import LoginScreen from "../../loginCred/LoginScreen";
 import { AuthContext } from "../../store/auth-context";

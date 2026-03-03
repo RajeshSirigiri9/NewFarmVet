@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "996265306834",
+    "project_id": "farmvet-87f17",
+    "storage_bucket": "farmvet-87f17.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996265306834:android:0faebc3aaba41a2a1cdb0b",
+        "android_client_info": {
+          "package_name": "com.newfarmvet.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAveNPNhRqnaoidmoPIcaicbTuqkbzhH08"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

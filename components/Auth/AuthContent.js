@@ -59,8 +59,9 @@ function AuthContent({ isLogin, onAuthenticate }) {
     const passwordIsValid = password.length > 5;
     const emailsAreEqual = email === confirmEmail;
     const passwordsAreEqual = password === confirmPassword;
-    const isNumValid = phoneValidation(phone);
-    const isNameValid = nameValidation(name);
+    // Make phone and name optional - only validate if provided
+    const isNumValid = !phone || phoneValidation(phone);
+    const isNameValid = !name || nameValidation(name);
 
     if (
       !emailIsValid ||
@@ -81,7 +82,7 @@ function AuthContent({ isLogin, onAuthenticate }) {
 
     authCtx.phoneNumberSetter(phone);
     authCtx.LoginNameSetter(name);
-    onAuthenticate({ email, password });
+    onAuthenticate({ email, password, name, phone });
   }
 
   return (
