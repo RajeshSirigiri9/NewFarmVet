@@ -1,10 +1,9 @@
 import { Dimensions } from "react-native";
 const { width, height } = Dimensions.get("window");
 
-import React, { cloneElement } from "react";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { cloneElement, useState, useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-
   View,
   FlatList,
   StyleSheet,
@@ -13,6 +12,9 @@ import {
   Image,
 } from "react-native";
 import i18n from "../../localization/i18n";
+import { getContentByLocation } from "../../util/adminService";
+import { extractYoutubeId } from "../../util/contentHelper";
+import YoutubePlayer from "react-native-youtube-iframe";
 
 const sheepList = [
   {
@@ -53,42 +55,125 @@ const sheepList = [
 ];
 
 export default function SheepDiesases({ navigation }) {
+  const [adminContent, setAdminContent] = useState([]);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    fetchContent();
+  }, []);
+
+  const fetchContent = async () => {
+    try {
+      const content = await getContentByLocation("sheep", "SheepDiseases");
+      setAdminContent(content || []);
+    } catch (error) {
+      console.log("Error fetching content:", error.message);
+      setAdminContent([]);
+    }
+  };
+
+  const combinedData = [
+    { id: "header", isAdmin: false, isHeader: true },
+    ...adminContent.map((item) => ({ ...item, isAdmin: true })),
+    ...sheepList.map((item) => ({ ...item, isAdmin: false })),
+  ];
+
+  const renderListItem = ({ item }) => {
+    if (item.isHeader) {
+      return (
+        <View style={{ alignItems: "center", marginBottom: 10 }}>
+          <Text
+            style={{
+              color: "#9a0202",
+              fontSize: 18,
+              fontWeight: "bold",
+              marginTop: 6,
+            }}
+          >
+            {i18n.t("sheepDiseases.diseases")}
+          </Text>
+          <Text
+            style={{
+              textAlign: "center",
+              margin: 15,
+              maxWidth: 340,
+              fontWeight: "500",
+            }}
+          >
+            <Text
+              style={{ color: "#2c2525", fontSize: 16, fontWeight: "bold" }}
+            >
+              {i18n.t("sheepDiseases.morbidityAndMortality")}{" "}
+            </Text>
+            {i18n.t("sheepDiseases.areTheTwoImportantFactors")}
+          </Text>
+        </View>
+      );
+    } else if (item.isAdmin) {
+      const videoId = item.videoUrl ? extractYoutubeId(item.videoUrl) : null;
+      return (
+        <View style={{ alignItems: "center" }}>
+          <View style={styles.imageHeader}>
+            <Text style={styles.imageName}>{item.title}</Text>
+          </View>
+          <View
+            style={[styles.imageContainer, { justifyContent: "space-evenly" }]}
+          >
+            {item.imageUrl && (
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={{
+                  width: "100%",
+                  height: 180,
+                  borderRadius: 5,
+                  marginBottom: 10,
+                }}
+                resizeMode="cover"
+              />
+            )}
+            <Text
+              style={{
+                padding: 10,
+                fontSize: 12,
+                color: "#555",
+                textAlign: "center",
+              }}
+            >
+              {item.description}
+            </Text>
+            {videoId && (
+              <YoutubePlayer
+                height={210}
+                width={300}
+                play={playing}
+                videoId={videoId}
+                onChangeState={(state) => {
+                  if (state === "ended") {
+                    setPlaying(false);
+                  }
+                }}
+              />
+            )}
+          </View>
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.videoContainer}>
+          <View style={styles.videoHeader}>
+            <Text style={styles.videoName}>{i18n.t(item.description)}</Text>
+          </View>
+          <Image source={item.img} style={{ width: "90%", height: 200 }} />
+        </View>
+      );
+    }
+  };
   return (
     <View style={styles.screen}>
-      <Text
-        style={{
-          color: "#9a0202",
-          fontSize: 18,
-          fontWeight: "bold",
-          marginTop: 6,
-        }}
-      >
-        {i18n.t("sheepDiseases.diseases")}
-      </Text>
-      <Text
-        style={{
-          textAlign: "center",
-          margin: 15,
-          maxWidth: 340,
-          fontWeight: "500",
-        }}
-      >
-        <Text style={{ color: "#2c2525", fontSize: 16, fontWeight: "bold" }}>
-          {i18n.t("sheepDiseases.morbidityAndMortality")}{" "}
-        </Text>
-        {i18n.t("sheepDiseases.areTheTwoImportantFactors")}
-      </Text>
       <FlatList
-        data={sheepList}
-        renderItem={({ item }) => (
-          <View style={styles.videoContainer}>
-            <View style={styles.videoHeader}>
-              <Text style={styles.videoName}>{i18n.t(item.description)}</Text>
-            </View>
-            <Image source={item.img} style={{ width: "90%", height: 180 }} />
-          </View>
-        )}
-        keyExtractor={(item) => item.id}
+        data={combinedData}
+        renderItem={renderListItem}
+        keyExtractor={(item, index) => item.id || `admin-${index}`}
       />
     </View>
   );
@@ -118,6 +203,32 @@ const styles = StyleSheet.create({
   },
   videoName: {
     color: "#f6f4f4",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  imageHeader: {
+    marginBottom: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  },
+  imageContainer: {
+    marginHorizontal: 10,
+    backgroundColor: "white",
+    borderRadius: 5,
+    marginBottom: 25,
+    width: width < 890 ? 300 : 440,
+    alignItems: "center",
+    elevation: 4,
+    overflow: "hidden",
+    shadowColor: "#9b0e7e",
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 2, height: 4 },
+    shadowRadius: 4,
+  },
+  imageName: {
+    color: "#393838",
     textAlign: "center",
     fontSize: 16,
     fontWeight: "bold",

@@ -6,10 +6,12 @@ import { useState, useContext, useEffect } from "react";
 import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import i18n from "../localization/i18n";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-
   StyleSheet,
   View,
   Text,
@@ -40,18 +42,97 @@ const Profile = () => {
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
   const authCtx = useContext(AuthContext);
   const navigation = useNavigation();
-  
+
   useEffect(() => {
+    console.log(
+      "Profile useEffect triggered - uid:",
+      authCtx.uid,
+      "isAuthenticated:",
+      authCtx.isAuthenticated,
+    );
+    setIsLoadingAdmin(true);
+    setIsAdmin(false);
     checkAdminStatus();
-  }, [authCtx.uid]);
-  
+  }, [authCtx.uid, authCtx.isAuthenticated]);
+
   const checkAdminStatus = async () => {
     try {
       if (authCtx.uid) {
         console.log("Checking admin status for UID:", authCtx.uid);
+
+        // Step 1: Check AsyncStorage first (fastest, most reliable at app restart)
+        const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+        if (storedIsAdmin !== null) {
+          const isAdminValue = JSON.parse(storedIsAdmin);
+          console.log("Found isAdmin in AsyncStorage:", isAdminValue);
+          setIsAdmin(isAdminValue === true);
+          setIsLoadingAdmin(false);
+          return;
+        }
+
+        // Step 2: Check if userData is available with isAdmin field
+        if (authCtx.userData && authCtx.userData.isAdmin !== undefined) {
+          console.log(
+            "Using userData in memory - isAdmin:",
+            authCtx.userData.isAdmin,
+          );
+          setIsAdmin(authCtx.userData.isAdmin === true);
+          setIsLoadingAdmin(false);
+          return;
+        }
+
+        // Step 3: Wait for Firebase Auth to be ready, then query Firestore
+        console.log("Firebase Auth not ready yet, waiting...");
+        const currentUser = firebase.auth().currentUser;
+        if (!currentUser) {
+          await new Promise((resolve, reject) => {
+            let resolved = false;
+            const unsubscribe = firebase.auth().onAuthStateChanged(
+              (user) => {
+                if (!resolved) {
+                  resolved = true;
+                  unsubscribe();
+                  if (user) {
+                    console.log(
+                      "Firebase Auth initialized with user:",
+                      user.uid,
+                    );
+                    resolve(user);
+                  } else {
+                    reject(new Error("User not authenticated in Firebase"));
+                  }
+                }
+              },
+              (error) => {
+                if (!resolved) {
+                  resolved = true;
+                  reject(error);
+                }
+              },
+            );
+            // Timeout after 5 seconds
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                unsubscribe();
+                reject(new Error("Firebase Auth initialization timeout"));
+              }
+            }, 5000);
+          });
+        } else {
+          console.log(
+            "Firebase Auth already available with user:",
+            currentUser.uid,
+          );
+        }
+
+        console.log("Firebase Auth is ready, querying Firestore");
         const adminStatus = await isUserAdmin(authCtx.uid);
-        console.log("Admin status result:", adminStatus);
+        console.log("Admin status result from Firestore:", adminStatus);
         setIsAdmin(adminStatus);
+
+        // Store for next time
+        await AsyncStorage.setItem("isAdmin", JSON.stringify(adminStatus));
       } else {
         console.log("No UID available yet");
         setIsAdmin(false);
@@ -59,10 +140,11 @@ const Profile = () => {
     } catch (error) {
       console.log("Error checking admin status:", error);
       setIsAdmin(false);
+    } finally {
+      setIsLoadingAdmin(false);
     }
-    setIsLoadingAdmin(false);
   };
-  
+
   console.log("Profile - Full authCtx:", {
     uid: authCtx.uid,
     isAuthenticated: authCtx.isAuthenticated,
@@ -72,14 +154,21 @@ const Profile = () => {
     phoneNumber: authCtx.phoneNumber,
   });
   console.log("Profile - Admin check state:", { isAdmin, isLoadingAdmin });
-  
+
   // Get data from context - prioritize userData but check for empty strings
   const mail = authCtx.Gmail || authCtx.userData?.email || "*****@gmail.com";
-  const name = authCtx.userData?.displayName || authCtx.otpLoginName || "Not Provided";
-  const phone = authCtx.userData?.phoneNumber || authCtx.phoneNumber || "Not Provided";
-  
+  const name =
+    authCtx.userData?.displayName || authCtx.otpLoginName || "Not Provided";
+  const phone =
+    authCtx.userData?.phoneNumber || authCtx.phoneNumber || "Not Provided";
+
   console.log("Profile - Final values:", { mail, name, phone });
-  
+  console.log("Profile - About to render, condition check:", {
+    isLoadingAdmin,
+    isAdmin,
+    shouldRenderButton: !isLoadingAdmin && isAdmin,
+  });
+
   const sendVerification = () => {
     setSubject("");
     setFeedBack("");
@@ -118,13 +207,16 @@ const Profile = () => {
         )}
 
         {/* Debug Info */}
-        {/* <View style={styles.debugBox}>
+        <View style={styles.debugBox}>
           <Text style={styles.debugText}>DEBUG INFO:</Text>
           <Text style={styles.debugText}>UID: {authCtx.uid || "No UID"}</Text>
           <Text style={styles.debugText}>isLoading: {isLoadingAdmin}</Text>
           <Text style={styles.debugText}>isAdmin: {isAdmin}</Text>
+          <Text style={styles.debugText}>
+            RenderButton: {!isLoadingAdmin && isAdmin ? "YES" : "NO"}
+          </Text>
           <Text style={styles.debugText}>Email: {mail}</Text>
-        </View> */}
+        </View>
       </SafeAreaView>
     </ImageBackground>
   );

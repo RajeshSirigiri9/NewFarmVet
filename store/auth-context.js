@@ -45,6 +45,7 @@ function AuthContextProvider({ children }) {
     AsyncStorage.removeItem("displayName");
     AsyncStorage.removeItem("phoneNumber");
     AsyncStorage.removeItem("userEmail");
+    AsyncStorage.removeItem("isAdmin");
   }
 
   function mailsetter(Gmail) {

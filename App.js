@@ -3,10 +3,18 @@ import "./config"; // Initialize Firebase first
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Button, Alert, TouchableOpacity } from "react-native";
 import { useState, useEffect, useContext, useCallback } from "react";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
 
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Push notifications import
+import { registerForPushNotifications, setupNotificationListeners, clearNotificationBadge } from "./util/pushNotifications";
+
+// Toast notifications import
+import { ToastProvider, ToastContext, useToast } from "./util/ToastNotification";
 
 // import Otp from "./components/screens/Otp";
 import MyDrawer from "./components/screens/MyDrawer";
@@ -326,8 +334,8 @@ function AuthenticatedStack() {
         name="AdminPanel"
         component={AdminPanel}
         options={{
-          title: "Admin Panel",
-          headerShown: true,
+          title: "",
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -365,8 +373,30 @@ function Navigation() {
 
 function Root() {
   const [isTryingLogin, setIsTryingLogin] = useState(true);
-
   const authCtx = useContext(AuthContext);
+  const toastContext = useContext(ToastContext);
+
+  useEffect(() => {
+    // Setup notification listeners when user is authenticated
+    if (authCtx.isAuthenticated && toastContext) {
+      console.log("ROOT: Setting up push notification listeners...");
+      const cleanup = setupNotificationListeners(
+        (notification) => {
+          console.log("Notification received:", notification);
+          // Show toast notification
+          const title = notification.request.content.title || "New Notification";
+          const body = notification.request.content.body || "You have a new message";
+          toastContext.showToast(`${title}: ${body}`, 'info', 4000);
+        },
+        (notification) => {
+          console.log("Notification tapped:", notification);
+          toastContext.showToast("Notification opened", 'info', 2000);
+        }
+      );
+
+      return cleanup;
+    }
+  }, [authCtx.isAuthenticated, toastContext]);
 
   useEffect(() => {
     async function prepare() {
@@ -382,36 +412,164 @@ function Root() {
     prepare();
 
     async function fetchToken() {
-      const storedToken = await AsyncStorage.getItem("token");
-      const storedUid = await AsyncStorage.getItem("uid");
-
-      if (storedToken && storedUid) {
-        authCtx.authenticate(storedToken, storedUid);
+      try {
+        console.log("\n========== ROOT: Session Restoration Started ==========");
         
-        // Restore user data from AsyncStorage
-        try {
-          const storedUserData = await AsyncStorage.getItem("userData");
-          if (storedUserData) {
-            authCtx.setUserData(JSON.parse(storedUserData));
+        // Try to get credentials from AsyncStorage
+        console.log("ROOT: Attempting to read from AsyncStorage...");
+        const storedToken = await AsyncStorage.getItem("token");
+        const storedUid = await AsyncStorage.getItem("uid");
+        const storedEmail = await AsyncStorage.getItem("userEmail");
+        const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+
+        console.log("\nROOT: AsyncStorage Contents:");
+        console.log("  - token:", storedToken ? `✓ ${storedToken.substring(0, 20)}...` : "✗ missing");
+        console.log("  - uid:", storedUid || "✗ missing");
+        console.log("  - email:", storedEmail || "✗ missing");
+        console.log("  - isAdmin:", storedIsAdmin || "✗ missing");
+        
+        // Check Firebase Auth's current user
+        console.log("\nROOT: Checking Firebase Auth currentUser...");
+        let firebaseUser = firebase.auth().currentUser;
+        console.log("  - Current user:", firebaseUser ? firebaseUser.uid : "✗ null");
+
+        if (storedToken && storedUid && storedEmail) {
+          console.log("\n✓ ROOT: Found stored credentials in AsyncStorage");
+          
+          // CRITICAL: Firebase Auth's currentUser is null even though we have a valid token
+          // We need to manually sign in with the stored credentials to populate firebase.auth().currentUser
+          // This is necessary because Firebase Auth doesn't auto-restore in React Native without explicit config
+          
+          if (!firebaseUser) {
+            console.log("ROOT: Firebase Auth currentUser is null - attempting to restore session...");
+            console.log("ROOT: Calling signInWithEmailAndPassword to restore Firebase Auth session...");
+            
+            try {
+              // We don't have the password, so we can't re-authenticate
+              // Instead, we need to manually set the auth state
+              // The best approach is to use the stored token to verify Firebase Auth
+              
+              // For now, set up an onAuthStateChanged listener to catch when Firebase Auth initializes
+              let authStateResolved = false;
+              
+              await new Promise((resolve) => {
+                const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+                  if (!authStateResolved) {
+                    authStateResolved = true;
+                    
+                    if (user) {
+                      console.log("✓ ROOT: Firebase Auth currentUser restored:", user.uid);
+                      firebaseUser = user;
+                    } else {
+                      console.log("! ROOT: Firebase Auth currentUser still null after waiting");
+                      console.log("! ROOT: This likely means the Firebase Auth session expired");
+                      console.log("! ROOT: User will need to re-login");
+                    }
+                    unsubscribe();
+                    resolve();
+                  }
+                }, (error) => {
+                  if (!authStateResolved) {
+                    authStateResolved = true;
+                    console.log("✗ ROOT: Firebase Auth error:", error.message);
+                    unsubscribe();
+                    resolve();
+                  }
+                });
+                
+                // Timeout after 3 seconds
+                setTimeout(() => {
+                  if (!authStateResolved) {
+                    authStateResolved = true;
+                    unsubscribe();
+                    resolve();
+                  }
+                }, 3000);
+              });
+            } catch (error) {
+              console.log("⚠ ROOT: Error attempting Firebase Auth restoration:", error.message);
+            }
           }
           
-          const storedDisplayName = await AsyncStorage.getItem("displayName");
-          if (storedDisplayName) {
-            authCtx.LoginNameSetter(storedDisplayName);
-          }
+          // Set up local authentication context
+          console.log("\nROOT: Setting up local auth context...");
+          authCtx.authenticate(storedToken, storedUid);
+          console.log("✓ ROOT: Local auth context set");
           
-          const storedPhoneNumber = await AsyncStorage.getItem("phoneNumber");
-          if (storedPhoneNumber) {
-            authCtx.phoneNumberSetter(storedPhoneNumber);
-          }
+          // Register for push notifications
+          console.log("\nROOT: Registering for push notifications...");
+          registerForPushNotifications(storedUid)
+            .then((token) => {
+              if (token) {
+                console.log("✓ ROOT: Push notification token registered:", token);
+              } else {
+                console.log("⚠ ROOT: Push notifications not available");
+              }
+            })
+            .catch((error) => {
+              console.log("⚠ ROOT: Error registering push notifications:", error);
+            });
           
-          const storedEmail = await AsyncStorage.getItem("userEmail");
-          if (storedEmail) {
-            authCtx.mailsetter(storedEmail);
+          console.log("ROOT: Restoring additional user data from AsyncStorage...");
+          
+          // Restore all user data from AsyncStorage
+          try {
+            const storedUserData = await AsyncStorage.getItem("userData");
+            if (storedUserData) {
+              authCtx.setUserData(JSON.parse(storedUserData));
+              console.log("✓ ROOT: User data restored");
+            }
+            
+            // Fetch fresh user data from Firestore to ensure isAdmin is current
+            console.log("ROOT: Fetching fresh user data from Firestore...");
+            try {
+              const { getUserData } = require("./util/auth");
+              const freshUserData = await getUserData(storedUid);
+              if (freshUserData) {
+                console.log("✓ ROOT: Fresh user data fetched, isAdmin:", freshUserData.isAdmin);
+                // Update isAdmin in AsyncStorage
+                if (freshUserData.isAdmin !== undefined) {
+                  await AsyncStorage.setItem("isAdmin", JSON.stringify(freshUserData.isAdmin));
+                } else {
+                  // Default to false if not set
+                  await AsyncStorage.setItem("isAdmin", JSON.stringify(false));
+                }
+              }
+            } catch (firebaseError) {
+              console.log("⚠ ROOT: Could not fetch fresh user data:", firebaseError.message);
+            }
+            
+            const storedDisplayName = await AsyncStorage.getItem("displayName");
+            if (storedDisplayName) {
+              authCtx.LoginNameSetter(storedDisplayName);
+              console.log("✓ ROOT: Display name restored");
+            }
+            
+            const storedPhoneNumber = await AsyncStorage.getItem("phoneNumber");
+            if (storedPhoneNumber) {
+              authCtx.phoneNumberSetter(storedPhoneNumber);
+              console.log("✓ ROOT: Phone restored");
+            }
+            
+            if (storedEmail) {
+              authCtx.mailsetter(storedEmail);
+              console.log("✓ ROOT: Email restored");
+            }
+            
+            console.log("\n✓ ROOT: Session restoration complete");
+            console.log("ROOT: User context ready, but Firebase Auth currentUser may still be null");
+            console.log("ROOT: This is okay - Firestore queries will use stored token");
+          } catch (error) {
+            console.log("⚠ ROOT: Error restoring user data:", error.message);
           }
-        } catch (error) {
-          console.log("Error restoring user data:", error.message);
+        } else {
+          console.log("\n! ROOT: No credentials in AsyncStorage");
+          console.log("! ROOT: User must login again");
         }
+        
+        console.log("========== ROOT: Session Restoration Complete ==========\n");
+      } catch (error) {
+        console.log("✗ ROOT: Unexpected error:", error);
       }
 
       setIsTryingLogin(false);
@@ -431,7 +589,7 @@ function Root() {
 
 export default function App() {
   return (
-    <>
+    <ToastProvider>
       <StatusBar style="light" />
       {/* <ContextProvider> */}
       <LanguageProvider>
@@ -440,6 +598,6 @@ export default function App() {
         </AuthContextProvider>
       </LanguageProvider>
       {/* </ContextProvider> */}
-    </>
+    </ToastProvider>
   );
 }

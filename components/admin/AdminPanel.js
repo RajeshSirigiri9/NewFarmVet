@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   ImageBackground,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthContext } from "../../store/auth-context";
 import { isUserAdmin } from "../../util/adminService";
 import NotificationManager from "./NotificationManager";
 import FeedbackViewer from "./FeedbackViewer";
 import ContentManager from "./ContentManager";
+import PostJob from "./PostJob";
 
 const AdminPanel = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState("notifications");
@@ -28,14 +30,51 @@ const AdminPanel = ({ navigation }) => {
 
   const checkAdminStatus = async () => {
     try {
+      console.log("AdminPanel - Checking admin status");
+
+      // Step 1: Check AsyncStorage first (no Firestore calls needed)
+      const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+      if (storedIsAdmin !== null) {
+        const isAdminValue = JSON.parse(storedIsAdmin);
+        console.log(
+          "AdminPanel - Found isAdmin in AsyncStorage:",
+          isAdminValue,
+        );
+        setIsAdmin(isAdminValue === true);
+        setIsLoading(false);
+        if (isAdminValue !== true) {
+          Alert.alert("Access Denied", "You do not have admin privileges");
+          navigation.goBack();
+        }
+        return;
+      }
+
+      // Step 2: Check if userData in context has isAdmin
+      if (authCtx.userData && authCtx.userData.isAdmin === true) {
+        console.log("AdminPanel - Found isAdmin in userData");
+        setIsAdmin(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Only if both fail, query Firestore
+      console.log("AdminPanel - Querying Firestore for admin status");
       const adminStatus = await isUserAdmin(authCtx.uid);
+      console.log("AdminPanel - Admin status:", adminStatus);
       setIsAdmin(adminStatus);
+
       if (!adminStatus) {
         Alert.alert("Access Denied", "You do not have admin privileges");
         navigation.goBack();
       }
+
+      // Store for next time
+      await AsyncStorage.setItem("isAdmin", JSON.stringify(adminStatus));
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.log("AdminPanel - Error checking admin status:", error);
+      Alert.alert("Error", error.message || "Failed to verify admin status");
+      setIsAdmin(false);
+      navigation.goBack();
     }
     setIsLoading(false);
   };
@@ -56,76 +95,142 @@ const AdminPanel = ({ navigation }) => {
     );
   }
 
+  const handleRefresh = async () => {
+    console.log("AdminPanel: User clicked refresh");
+    Alert.alert("Refreshing", "Clearing cache and reloading...");
+
+    // Clear AsyncStorage
+    try {
+      await AsyncStorage.removeItem("isAdmin");
+      console.log("AdminPanel: Cleared isAdmin from AsyncStorage");
+    } catch (error) {
+      console.log("AdminPanel: Error clearing cache:", error);
+    }
+
+    // Refresh current tab by re-mounting the component
+    const current = activeTab;
+    setActiveTab(null); // Force unmount
+    setTimeout(() => {
+      setActiveTab(current); // Remount
+      console.log("AdminPanel: Tab reloaded");
+      Alert.alert("Refreshed", "Data reloaded - check the " + current + " tab");
+    }, 500);
+  };
+
+  const handleLogout = async () => {
+    Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
+      {
+        text: "Cancel",
+        onPress: () => {},
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        onPress: async () => {
+          try {
+            await AsyncStorage.clear();
+            import("firebase/compat/app").then((firebase) => {
+              firebase.default.auth().signOut();
+            });
+            Alert.alert("Logged Out", "You have been logged out");
+            navigation.navigate("Login");
+          } catch (error) {
+            console.log("Logout error:", error);
+          }
+        },
+        style: "destructive",
+      },
+    ]);
+  };
+
   return (
-    // <ImageBackground
-    //   source={require("../../assets/images/background2.webp")}
-    //   style={styles.rootScreen}
-    //   resizeMode="cover"
-    //   imageStyle={styles.backgroundImage}
-    // >
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Admin Panel</Text>
-          <Text style={styles.headerSubtitle}>Welcome, Admin!</Text>
-        </View>
-
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>Admin Panel</Text>
+            <Text style={styles.headerSubtitle}>Welcome, Admin!</Text>
+          </View>
           <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+          >
+            <Text style={styles.refreshButtonText}>🔄</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "notifications" && styles.activeTab,
+          ]}
+          onPress={() => setActiveTab("notifications")}
+        >
+          <Text
             style={[
-              styles.tab,
-              activeTab === "notifications" && styles.activeTab,
+              styles.tabText,
+              activeTab === "notifications" && styles.activeTabText,
             ]}
-            onPress={() => setActiveTab("notifications")}
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "notifications" && styles.activeTabText,
-              ]}
-            >
-              📢 Notifications
-            </Text>
-          </TouchableOpacity>
+            📢 Notifications
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "feedback" && styles.activeTab]}
-            onPress={() => setActiveTab("feedback")}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "feedback" && styles.activeTab]}
+          onPress={() => setActiveTab("feedback")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "feedback" && styles.activeTabText,
+            ]}
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "feedback" && styles.activeTabText,
-              ]}
-            >
-            Feedback  💬
-            </Text>
-          </TouchableOpacity>
+            Feedback 💬
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "content" && styles.activeTab]}
-            onPress={() => setActiveTab("content")}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "content" && styles.activeTab]}
+          onPress={() => setActiveTab("content")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "content" && styles.activeTabText,
+            ]}
           >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "content" && styles.activeTabText,
-              ]}
-            >
-              📝 Content
-            </Text>
-          </TouchableOpacity>
-        </View>
+            📝 Content
+          </Text>
+        </TouchableOpacity>
 
-        {/* Content */}
-        <ScrollView style={styles.content}>
-          {activeTab === "notifications" && <NotificationManager />}
-          {activeTab === "feedback" && <FeedbackViewer />}
-          {activeTab === "content" && <ContentManager />}
-        </ScrollView>
-      </SafeAreaView>
-    // </ImageBackground>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "postJob" && styles.activeTab]}
+          onPress={() => setActiveTab("postJob")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "postJob" && styles.activeTabText,
+            ]}
+          >
+            💼 Post Job
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      <ScrollView style={styles.content}>
+        {activeTab === "notifications" && <NotificationManager />}
+        {activeTab === "feedback" && <FeedbackViewer />}
+        {activeTab === "content" && <ContentManager />}
+        {activeTab === "postJob" && <PostJob navigation={navigation} />}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -143,9 +248,22 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "rgba(39, 174, 96, 0.8)",
     padding: 20,
-    paddingTop: 10,
+    paddingTop: 50,
     borderBottomWidth: 2,
     borderBottomColor: "#27ae60",
+  },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  refreshButton: {
+    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    fontSize: 20,
   },
   headerTitle: {
     fontSize: 28,

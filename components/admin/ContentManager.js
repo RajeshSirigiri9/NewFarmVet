@@ -13,6 +13,9 @@ import {
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
 import {
   addContent,
   getAllContent,
@@ -34,7 +37,179 @@ const ContentManager = () => {
   const [category, setCategory] = useState("general");
   const [isEditMode, setIsEditMode] = useState(false);
 
-  const categories = ["general", "cattle", "sheep", "farming", "health", "other"];
+  // New: Target location fields
+  const [targetSection, setTargetSection] = useState("cattle");
+  const [targetPage, setTargetPage] = useState("CattleList");
+  const [targetSubPage, setTargetSubPage] = useState("");
+  const [contentTypes, setSelectedContentTypes] = useState([
+    "title",
+    "description",
+  ]);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [order, setOrder] = useState("1");
+
+  const categories = [
+    "general",
+    "cattle",
+    "sheep",
+    "farming",
+    "health",
+    "other",
+  ];
+
+  // Mapping of sections to their pages
+  const sectionPages = {
+    cattle: [
+      "CattleList",
+      "Dairy",
+      "Housing",
+      "Feeding",
+      "Diseases",
+      "HealthCare",
+      "BioGas",
+      "CalfRearing",
+      "CleanMilkProduction",
+      "EnvironmentalDairyHousing",
+      "GoMutraArk",
+      "HeatDetection",
+      "OrganicDairy",
+      "PfizerDrug",
+      "PreventiveHealthCare",
+      "SahiwalCalves",
+      "SelectionOfGoodAnimals",
+      "VermiComposting",
+      "WallowingTank",
+    ],
+    sheep: [
+      "Sheep",
+      "SheepBreeding",
+      "SheepDiseases",
+      "ScientificPractices",
+      "BestPractices",
+      "HealthCare",
+      "FoddersSheep",
+      "GoatHousing",
+    ],
+    farming: [
+      "IntegratedFarming",
+      "Azolla",
+      "Hydrophonics",
+      "Emu",
+      "Byproducts",
+    ],
+    research: ["ResearchAreas", "Farming"],
+    technologies: ["Technologies"],
+    careers: ["JobPostings", "JobOpportunities"],
+    other: ["Home", "About", "Contact", "Download", "Publication"],
+  };
+
+  // Mapping of subpage keys to their actual page component names
+  const subPageToPageMap = {
+    dairyProject: "Dairy",
+    environmentalDairyHousing: "EnvironmentalDairyHousing",
+    housing: "Housing",
+    organicDairy: "OrganicDairy",
+    selectionOfGoodAnimals: "SelectionOfGoodAnimals",
+    wallowingTank: "WallowingTank",
+    calfRearing: "CalfRearing",
+    cleanMilkProduction: "CleanMilkProduction",
+    feeding: "Feeding",
+    heatDetection: "HeatDetection",
+    diseases: "Diseases",
+    preventiveHealthCare: "PreventiveHealthCare",
+    sheepBreeding: "SheepBreeding",
+    sheepDiseases: "SheepDiseases",
+    scientificPractices: "ScientificPractices",
+    bestPractices: "BestPractices",
+    healthCare: "HealthCare",
+    foddersSheep: "FoddersSheep",
+    goatHousing: "GoatHousing",
+  };
+
+  // Mapping of pages to subpages/locations
+  const pageSubPages = {
+    // CattleList subpages
+    CattleList: [
+      { key: "dairyProject", label: "Dairy Project" },
+      {
+        key: "environmentalDairyHousing",
+        label: "Environmental Dairy Housing",
+      },
+      { key: "housing", label: "Housing" },
+      { key: "organicDairy", label: "Organic Dairy" },
+      { key: "selectionOfGoodAnimals", label: "Selection Of Good Animals" },
+      { key: "wallowingTank", label: "Wallowing Tank" },
+      { key: "calfRearing", label: "Calf Rearing" },
+      { key: "cleanMilkProduction", label: "Clean Milk Production" },
+      { key: "feeding", label: "Feeding" },
+      { key: "heatDetection", label: "Heat Detection" },
+      { key: "diseases", label: "Diseases" },
+      { key: "preventiveHealthCare", label: "Preventive Health Care" },
+    ],
+    // Sheep subpages
+    Sheep: [
+      { key: "sheepBreeding", label: "Sheep Breeding" },
+      { key: "sheepDiseases", label: "Sheep Diseases" },
+      { key: "scientificPractices", label: "Scientific Practices" },
+      { key: "bestPractices", label: "Best Management Practices" },
+      { key: "healthCare", label: "Health Care" },
+      { key: "foddersSheep", label: "Fodders for Sheep" },
+      { key: "goatHousing", label: "Goat Housing" },
+    ],
+    // Dairy subpages
+    Dairy: [
+      { key: "dairyProduction", label: "Dairy Production" },
+      { key: "organic", label: "Organic Dairy" },
+      { key: "cleanMilk", label: "Clean Milk Production" },
+    ],
+    // Housing subpages
+    Housing: [
+      { key: "cattleHousing", label: "Cattle Housing" },
+      { key: "environmentalControl", label: "Environmental Control" },
+      { key: "wallowingTank", label: "Wallowing Tank" },
+      { key: "goatHousing", label: "Goat Housing" },
+    ],
+    // Farming subpages
+    IntegratedFarming: [
+      { key: "crops", label: "Crops Integration" },
+      { key: "livestock", label: "Livestock Integration" },
+      { key: "fishery", label: "Fishery Integration" },
+    ],
+    // Research Areas subpages
+    ResearchAreas: [
+      {
+        key: "integratedFarmingResearch",
+        label: "Integrated Farming Research",
+      },
+      { key: "pfizer", label: "Pfizer Drug Studies" },
+      { key: "animalHealth", label: "Animal Health Research" },
+    ],
+    // Technologies subpages
+    Technologies: [
+      { key: "milkTechnology", label: "Milk Processing Technology" },
+      { key: "soilTechnology", label: "Soil Technology" },
+      { key: "waterMgmt", label: "Water Management" },
+      { key: "machineryTech", label: "Farm Machinery" },
+    ],
+    // By-products subpages
+    Byproducts: [
+      { key: "cowByproducts", label: "Cow By-products" },
+      { key: "sheepByproducts", label: "Sheep By-products" },
+      { key: "poultryByproducts", label: "Poultry By-products" },
+      { key: "vermicompost", label: "Vermicompost" },
+    ],
+  };
+
+  const availableContentTypes = [
+    "title",
+    "description",
+    "image",
+    "videoLink",
+    "additionalInfo",
+  ];
+
+  const availablePages = sectionPages[targetSection] || sectionPages.cattle;
+  const availableSubPages = pageSubPages[targetPage] || [];
 
   useEffect(() => {
     fetchContent();
@@ -43,11 +218,67 @@ const ContentManager = () => {
   const fetchContent = async () => {
     try {
       setIsLoading(true);
-      const data = await getAllContent();
-      setContentList(data);
+      console.log("\nContentManager: Fetching content...");
+
+      // Check if currentUser is already available
+      let currentUser = firebase.auth().currentUser;
+      console.log(
+        "ContentManager: CurrentUser check:",
+        currentUser ? currentUser.uid : "null",
+      );
+
+      if (!currentUser) {
+        console.log(
+          "ContentManager: No currentUser, attempting to sign in with email and cached token...",
+        );
+
+        // Try to get email from AsyncStorage
+        const storedEmail = await AsyncStorage.getItem("userEmail");
+
+        if (storedEmail) {
+          console.log(
+            "ContentManager: Found stored email, attempting to use it...",
+          );
+          console.log(
+            "ContentManager: Proceeding without Firebase Auth currentUser",
+          );
+          console.log(
+            "ContentManager: Will rely on Firestore rules being readable",
+          );
+        }
+      } else {
+        console.log("✓ ContentManager: Using existing Firebase Auth session");
+      }
+
+      // Attempt to fetch content
+      try {
+        console.log("ContentManager: Calling getAllContent()");
+        const data = await getAllContent();
+        console.log("✓ ContentManager: Fetched", data.length, "content items");
+        setContentList(data);
+      } catch (firestoreError) {
+        console.log(
+          "⚠ ContentManager: Firestore query failed:",
+          firestoreError.message,
+        );
+
+        if (
+          firestoreError.message.includes("Missing or insufficient permissions")
+        ) {
+          console.log(
+            "ContentManager: Permission error - likely due to Firestore rules",
+          );
+          Alert.alert(
+            "Access Required",
+            "Firestore rules may need to be updated to allow content access.\n\nPlease contact admin.",
+          );
+        } else {
+          throw firestoreError;
+        }
+      }
     } catch (error) {
-      console.log("Error fetching content:", error);
-      Alert.alert("Error", error.message);
+      console.log("✗ ContentManager Error:", error);
+      Alert.alert("Error Loading Content", error.message);
     }
     setIsLoading(false);
   };
@@ -71,8 +302,8 @@ const ContentManager = () => {
   };
 
   const handleAddContent = async () => {
-    if (!title.trim() || !description.trim()) {
-      Alert.alert("Error", "Title and description are required");
+    if (!title.trim()) {
+      Alert.alert("Error", "Title is required");
       return;
     }
 
@@ -81,8 +312,38 @@ const ContentManager = () => {
       return;
     }
 
-    if (description.length < 10 || description.length > 2000) {
-      Alert.alert("Error", "Description must be between 10 and 2000 characters");
+    if (
+      description.trim() &&
+      (description.length < 10 || description.length > 2000)
+    ) {
+      Alert.alert(
+        "Error",
+        "Description must be between 10 and 2000 characters",
+      );
+      return;
+    }
+
+    // Check admin status before proceeding
+    console.log(
+      "ContentManager: Checking admin status before saving content...",
+    );
+    try {
+      const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+      const isAdmin = storedIsAdmin && JSON.parse(storedIsAdmin) === true;
+
+      if (!isAdmin) {
+        Alert.alert("Access Denied", "Only admins can create or edit content");
+        console.log("ContentManager: User is not admin, rejecting save");
+        return;
+      }
+
+      console.log("✓ ContentManager: Admin status verified");
+    } catch (error) {
+      console.log(
+        "ContentManager: Error checking admin status:",
+        error.message,
+      );
+      Alert.alert("Error", "Could not verify admin status");
       return;
     }
 
@@ -91,16 +352,37 @@ const ContentManager = () => {
 
       if (isEditMode) {
         // Update existing content
+        console.log("ContentManager: Updating content:", selectedContent.id);
         await updateContent(selectedContent.id, {
           title,
           description,
           category,
+          targetSection,
+          targetPage,
+          targetSubPage,
+          contentTypes,
+          videoUrl,
+          order: parseInt(order) || 1,
           imageUrl: imagePreview || selectedContent.imageUrl,
         });
+        console.log("✓ ContentManager: Content updated");
         Alert.alert("Success", "Content updated successfully");
       } else {
         // Add new content
-        await addContent(title, description, imagePreview, category);
+        console.log("ContentManager: Adding new content");
+        await addContent(
+          title,
+          description,
+          imagePreview,
+          category,
+          targetSection,
+          targetPage,
+          targetSubPage,
+          contentTypes,
+          videoUrl,
+          parseInt(order) || 1,
+        );
+        console.log("✓ ContentManager: Content added");
         Alert.alert("Success", "Content added successfully");
       }
 
@@ -108,6 +390,12 @@ const ContentManager = () => {
       setTitle("");
       setDescription("");
       setCategory("general");
+      setTargetSection("cattle");
+      setTargetPage("CattleList");
+      setTargetSubPage("");
+      setSelectedContentTypes(["title", "description"]);
+      setVideoUrl("");
+      setOrder("1");
       setSelectedImage(null);
       setImagePreview(null);
       setShowAddForm(false);
@@ -117,36 +405,64 @@ const ContentManager = () => {
       // Refresh content list
       fetchContent();
     } catch (error) {
+      console.log("✗ ContentManager Error:", error.message);
       Alert.alert("Error", error.message);
     }
     setIsLoading(false);
   };
 
   const handleDeleteContent = async (contentId) => {
-    Alert.alert("Confirm Delete", "Are you sure you want to delete this content?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        onPress: async () => {
-          try {
-            setIsLoading(true);
-            await deleteContent(contentId);
-            Alert.alert("Success", "Content deleted successfully");
-            fetchContent();
-          } catch (error) {
-            Alert.alert("Error", error.message);
-          }
-          setIsLoading(false);
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this content?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              // Verify admin before deleting
+              const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+              const isAdmin =
+                storedIsAdmin && JSON.parse(storedIsAdmin) === true;
+
+              if (!isAdmin) {
+                Alert.alert("Access Denied", "Only admins can delete content");
+                return;
+              }
+
+              setIsLoading(true);
+              console.log("ContentManager: Deleting content:", contentId);
+              await deleteContent(contentId);
+              console.log("✓ ContentManager: Content deleted");
+              Alert.alert("Success", "Content deleted successfully");
+              fetchContent();
+            } catch (error) {
+              console.log("✗ ContentManager Error deleting:", error.message);
+              Alert.alert("Error", error.message);
+            }
+            setIsLoading(false);
+          },
+          style: "destructive",
         },
-        style: "destructive",
-      },
-    ]);
+      ],
+    );
   };
 
   const handleEditContent = (content) => {
     setTitle(content.title);
     setDescription(content.description);
     setCategory(content.category || "general");
+    setTargetSection(content.targetSection || "cattle");
+    setTargetPage(content.targetPage || "CattleList");
+    setTargetSubPage(content.targetSubPage || "");
+    setSelectedContentTypes(
+      Array.isArray(content.contentTypes)
+        ? content.contentTypes
+        : ["title", "description"],
+    );
+    setVideoUrl(content.videoUrl || "");
+    setOrder(String(content.order || 1));
     setImagePreview(content.imageUrl);
     setSelectedContent(content);
     setIsEditMode(true);
@@ -171,6 +487,19 @@ const ContentManager = () => {
             {item.title}
           </Text>
           <Text style={styles.contentCategory}>{item.category}</Text>
+          <Text style={styles.contentLocation}>
+            📍{" "}
+            {item.targetSection?.charAt(0).toUpperCase() +
+              item.targetSection?.slice(1) || "cattle"}{" "}
+            → {item.targetPage || ""}
+            {item.targetSubPage ? ` → ${item.targetSubPage}` : ""}
+          </Text>
+          <Text style={styles.contentTypes}>
+            Types:{" "}
+            {Array.isArray(item.contentTypes)
+              ? item.contentTypes.join(", ")
+              : item.contentType || "N/A"}
+          </Text>
           <Text style={styles.contentDescription} numberOfLines={2}>
             {item.description}
           </Text>
@@ -213,9 +542,15 @@ const ContentManager = () => {
 
       {/* Content List */}
       {isLoading ? (
-        <ActivityIndicator size="large" color="#27ae60" style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color="#27ae60"
+          style={{ marginTop: 20 }}
+        />
       ) : contentList.length === 0 ? (
-        <Text style={styles.emptyText}>No content found. Add your first page!</Text>
+        <Text style={styles.emptyText}>
+          No content found. Add your first page!
+        </Text>
       ) : (
         <FlatList
           data={contentList}
@@ -243,26 +578,11 @@ const ContentManager = () => {
                 {isEditMode ? "Edit Content" : "Add New Content"}
               </Text>
 
-              {/* Image Section */}
-              <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                {imagePreview ? (
-                  <>
-                    <Image
-                      source={{ uri: imagePreview }}
-                      style={styles.imagePreview}
-                    />
-                    <Text style={styles.imagePickerText}>Change Image</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.imagePickerIcon}>📷</Text>
-                    <Text style={styles.imagePickerText}>Add Image (Optional)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* Title Input */}
-              <Text style={styles.label}>Title (5-100 characters)</Text>
+              {/* Title Input - MANDATORY */}
+              <Text style={styles.label}>
+                Title <Text style={styles.mandatoryIndicator}>*</Text> (5-100
+                characters)
+              </Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter content title"
@@ -279,11 +599,13 @@ const ContentManager = () => {
                 {title.length}/100
               </Text>
 
-              {/* Description Input */}
-              <Text style={styles.label}>Description (10-2000 characters)</Text>
+              {/* Description Input - OPTIONAL */}
+              <Text style={styles.label}>
+                Description (Optional - 10-2000 characters)
+              </Text>
               <TextInput
                 style={[styles.input, styles.descriptionInput]}
-                placeholder="Enter content description"
+                placeholder="Enter content description (optional)"
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -323,6 +645,212 @@ const ContentManager = () => {
                 ))}
               </View>
 
+              {/* Target Section Selector */}
+              <Text style={styles.label}>Target Section</Text>
+              <View style={styles.dropdownContainer}>
+                {Object.keys(sectionPages).map((section) => (
+                  <TouchableOpacity
+                    key={section}
+                    style={[
+                      styles.dropdownButton,
+                      targetSection === section && styles.dropdownButtonActive,
+                    ]}
+                    onPress={() => {
+                      setTargetSection(section);
+                      setTargetPage(sectionPages[section][0]);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownButtonText,
+                        targetSection === section &&
+                          styles.dropdownButtonTextActive,
+                      ]}
+                    >
+                      {section.charAt(0).toUpperCase() + section.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Target Page Selector */}
+              <Text style={styles.label}>Target Page</Text>
+              <View style={styles.dropdownContainer}>
+                {availablePages.map((page) => (
+                  <TouchableOpacity
+                    key={page}
+                    style={[
+                      styles.dropdownButton,
+                      targetPage === page && styles.dropdownButtonActive,
+                    ]}
+                    onPress={() => {
+                      setTargetPage(page);
+                      setTargetSubPage("");
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownButtonText,
+                        targetPage === page && styles.dropdownButtonTextActive,
+                      ]}
+                    >
+                      {page}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Target SubPage/Location Selector (if available) */}
+              {availableSubPages.length > 0 && (
+                <>
+                  <Text style={styles.label}>Target Location (Optional)</Text>
+                  <Text style={styles.sublabel}>
+                    Selecting a location will automatically update the target
+                    page
+                  </Text>
+                  <View style={styles.dropdownContainer}>
+                    {availableSubPages.map((sub) => (
+                      <TouchableOpacity
+                        key={sub.key}
+                        style={[
+                          styles.dropdownButton,
+                          targetSubPage === sub.key &&
+                            styles.dropdownButtonActive,
+                        ]}
+                        onPress={() => {
+                          setTargetSubPage(sub.key);
+                          // Automatically update targetPage to the actual component page
+                          if (subPageToPageMap[sub.key]) {
+                            setTargetPage(subPageToPageMap[sub.key]);
+                          }
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownButtonText,
+                            targetSubPage === sub.key &&
+                              styles.dropdownButtonTextActive,
+                          ]}
+                        >
+                          {sub.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Content Type Selector - Multiselect */}
+              <Text style={styles.label}>
+                Content Type{" "}
+                <Text style={styles.mandatoryIndicator}>
+                  * (select at least one)
+                </Text>
+              </Text>
+              <View style={styles.dropdownContainer}>
+                {availableContentTypes.map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.dropdownButton,
+                      contentTypes.includes(type) &&
+                        styles.dropdownButtonActive,
+                    ]}
+                    onPress={() => {
+                      if (contentTypes.includes(type)) {
+                        // Remove if already selected
+                        if (contentTypes.length > 1) {
+                          setSelectedContentTypes(
+                            contentTypes.filter((t) => t !== type),
+                          );
+                        }
+                      } else {
+                        // Add if not selected
+                        setSelectedContentTypes([...contentTypes, type]);
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownButtonText,
+                        contentTypes.includes(type) &&
+                          styles.dropdownButtonTextActive,
+                      ]}
+                    >
+                      {contentTypes.includes(type) ? "✓ " : ""}
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Conditionally show Image field */}
+              {contentTypes.includes("image") && (
+                <View>
+                  <Text style={styles.label}>Image (Optional)</Text>
+                  <TouchableOpacity
+                    style={styles.imagePicker}
+                    onPress={pickImage}
+                  >
+                    {imagePreview ? (
+                      <>
+                        <Image
+                          source={{ uri: imagePreview }}
+                          style={styles.imagePreview}
+                        />
+                        <Text style={styles.imagePickerText}>Change Image</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.imagePickerIcon}>📷</Text>
+                        <Text style={styles.imagePickerText}>Add Image</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Conditionally show Video URL field */}
+              {contentTypes.includes("videoLink") && (
+                <View>
+                  <Text style={styles.label}>Video URL (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    value={videoUrl}
+                    onChangeText={setVideoUrl}
+                    placeholderTextColor="#bdc3c7"
+                  />
+                </View>
+              )}
+
+              {/* Conditionally show Additional Info field */}
+              {contentTypes.includes("additionalInfo") && (
+                <View>
+                  <Text style={styles.label}>Additional Info (Optional)</Text>
+                  <TextInput
+                    style={[styles.input, styles.descriptionInput]}
+                    placeholder="Any additional information..."
+                    value={order}
+                    onChangeText={setOrder}
+                    multiline
+                    numberOfLines={3}
+                    placeholderTextColor="#bdc3c7"
+                  />
+                </View>
+              )}
+
+              {/* Display Order Input */}
+              <Text style={styles.label}>Display Order (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1"
+                value={order}
+                onChangeText={setOrder}
+                keyboardType="numeric"
+                placeholderTextColor="#bdc3c7"
+              />
+
               {/* Form Actions */}
               <View style={styles.formActions}>
                 <TouchableOpacity
@@ -335,16 +863,18 @@ const ContentManager = () => {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.submitButton}
+                  style={[
+                    styles.submitButton,
+                    (!title.trim() ||
+                      !description.trim() ||
+                      title.length < 5 ||
+                      title.length > 100 ||
+                      description.length < 10 ||
+                      description.length > 2000) &&
+                      styles.submitButtonDisabled,
+                  ]}
                   onPress={handleAddContent}
-                  disabled={
-                    !title.trim() ||
-                    !description.trim() ||
-                    title.length < 5 ||
-                    title.length > 100 ||
-                    description.length < 10 ||
-                    description.length > 2000
-                  }
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.submitButtonText}>
                     {isEditMode ? "Update" : "Add"}
@@ -386,7 +916,9 @@ const ContentManager = () => {
 
               <Text style={styles.detailDate}>
                 Added:{" "}
-                {new Date(selectedContent?.createdAt?.toDate?.()).toLocaleDateString()}
+                {new Date(
+                  selectedContent?.createdAt?.toDate?.(),
+                ).toLocaleDateString()}
               </Text>
 
               <View style={styles.detailActions}>
@@ -468,6 +1000,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#27ae60",
     fontWeight: "600",
+    marginBottom: 6,
+  },
+  contentLocation: {
+    fontSize: 10,
+    color: "#8e44ad",
+    fontWeight: "500",
+    marginBottom: 6,
+  },
+  contentTypes: {
+    fontSize: 9,
+    color: "#16a085",
+    fontWeight: "400",
     marginBottom: 6,
   },
   contentDescription: {
@@ -560,6 +1104,13 @@ const styles = StyleSheet.create({
     color: "#2c3e50",
     marginBottom: 8,
   },
+  sublabel: {
+    fontSize: 11,
+    color: "#7f8c8d",
+    fontStyle: "italic",
+    marginBottom: 10,
+    marginTop: -5,
+  },
   input: {
     backgroundColor: "#f8f9fa",
     borderWidth: 1,
@@ -631,10 +1182,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
+  submitButtonDisabled: {
+    backgroundColor: "#bdc3c7",
+    opacity: 0.6,
+  },
   submitButtonText: {
     color: "white",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  mandatoryIndicator: {
+    color: "#e74c3c",
+    fontWeight: "bold",
   },
   detailImage: {
     width: "100%",
@@ -712,6 +1271,32 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  dropdownContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 15,
+  },
+  dropdownButton: {
+    backgroundColor: "#ecf0f1",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#bdc3c7",
+  },
+  dropdownButtonActive: {
+    backgroundColor: "#3498db",
+    borderColor: "#2980b9",
+  },
+  dropdownButtonText: {
+    fontSize: 12,
+    color: "#7f8c8d",
+    fontWeight: "600",
+  },
+  dropdownButtonTextActive: {
+    color: "white",
   },
 });
 

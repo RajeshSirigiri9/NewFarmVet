@@ -1,20 +1,27 @@
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  updateDoc, 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  updateDoc,
   doc,
   query,
   where,
   deleteDoc,
   setDoc,
-  getDoc
+  getDoc,
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
 
-const db = getFirestore();
-const storage = getStorage();
+// Import the initialized app from config
+import { firebaseConfig } from "../config";
+
+// Get the default Firebase app instance
+const app = firebase.app();
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 /**
  * Check if user is admin
@@ -45,7 +52,7 @@ export async function isUserAdmin(userId) {
 export async function getAllUsers() {
   try {
     const querySnapshot = await getDocs(collection(db, "users"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     throw new Error("Failed to fetch users: " + error.message);
   }
@@ -54,7 +61,11 @@ export async function getAllUsers() {
 /**
  * Send notification to all users
  */
-export async function sendNotificationToAllUsers(title, message, imageUrl = null) {
+export async function sendNotificationToAllUsers(
+  title,
+  message,
+  imageUrl = null,
+) {
   try {
     if (!title || !title.trim()) {
       throw new Error("Notification title is required");
@@ -71,7 +82,10 @@ export async function sendNotificationToAllUsers(title, message, imageUrl = null
       status: "published",
     };
 
-    const docRef = await addDoc(collection(db, "notifications"), notificationData);
+    const docRef = await addDoc(
+      collection(db, "notifications"),
+      notificationData,
+    );
     console.log("Notification sent with ID:", docRef.id);
 
     return {
@@ -89,7 +103,10 @@ export async function sendNotificationToAllUsers(title, message, imageUrl = null
 export async function getAllNotifications() {
   try {
     const querySnapshot = await getDocs(collection(db, "notifications"));
-    const notifications = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const notifications = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     // Sort by newest first
     return notifications.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
@@ -115,7 +132,10 @@ export async function deleteNotification(notificationId) {
 export async function getAllFeedbackAdmin() {
   try {
     const querySnapshot = await getDocs(collection(db, "feedback"));
-    const feedbackList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const feedbackList = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     // Sort by newest first
     return feedbackList.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
@@ -144,22 +164,39 @@ export async function updateFeedbackStatusAdmin(feedbackId, status) {
 }
 
 /**
- * Add new content/page
+ * Add new content/page with location targeting
  */
-export async function addContent(title, description, imageUrl = null, category = "general") {
+export async function addContent(
+  title,
+  description,
+  imageUrl = null,
+  category = "general",
+  targetSection = "cattle",
+  targetPage = "CattleList",
+  targetSubPage = "",
+  contentTypes = ["title", "description"],
+  videoUrl = "",
+  order = 1,
+) {
   try {
     if (!title || !title.trim()) {
       throw new Error("Content title is required");
     }
-    if (!description || !description.trim()) {
-      throw new Error("Content description is required");
+    if (!Array.isArray(contentTypes) || contentTypes.length === 0) {
+      throw new Error("At least one content type must be selected");
     }
 
     const contentData = {
       title: title.trim(),
-      description: description.trim(),
+      description: description ? description.trim() : "",
       imageUrl: imageUrl || null,
       category: category || "general",
+      targetSection: targetSection || "cattle",
+      targetPage: targetPage || "CattleList",
+      targetSubPage: targetSubPage || "",
+      contentTypes: contentTypes,
+      videoUrl: videoUrl || "",
+      order: parseInt(order) || 1,
       createdAt: new Date(),
       updatedAt: new Date(),
       isPublished: true,
@@ -183,10 +220,52 @@ export async function addContent(title, description, imageUrl = null, category =
 export async function getAllContent() {
   try {
     const querySnapshot = await getDocs(collection(db, "content"));
-    const content = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const content = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     // Sort by newest first
     return content.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
+    throw new Error("Failed to fetch content: " + error.message);
+  }
+}
+
+/**
+ * Get content by target section and page, optionally filtered by subpage
+ */
+export async function getContentByLocation(
+  targetSection,
+  targetPage,
+  targetSubPage = null,
+) {
+  try {
+    let constraints = [
+      where("targetSection", "==", targetSection),
+      where("targetPage", "==", targetPage),
+      where("isPublished", "==", true),
+    ];
+
+    // If targetSubPage is provided, add it to the query
+    if (targetSubPage) {
+      constraints.push(where("targetSubPage", "==", targetSubPage));
+    }
+
+    const q = query(collection(db, "content"), ...constraints);
+    const querySnapshot = await getDocs(q);
+    const content = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Sort by order and then by creation date
+    return content.sort((a, b) => {
+      const orderDiff = (a.order || 999) - (b.order || 999);
+      if (orderDiff !== 0) return orderDiff;
+      return b.createdAt - a.createdAt;
+    });
+  } catch (error) {
+    console.error("Failed to fetch content by location:", error.message);
     throw new Error("Failed to fetch content: " + error.message);
   }
 }
