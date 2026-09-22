@@ -15,40 +15,71 @@ function LoginScreen() {
   async function loginHandler({ email, password }) {
     setIsAuthenticating(true);
     try {
-      const response = await login(email, password);
+      console.log("\n========== LOGIN: Starting login process ==========");
+      console.log("LOGIN: Email:", email);
       
-      // Set authentication first
+      const response = await login(email, password);
+      console.log("LOGIN: Got response from auth.login()");
+      console.log("LOGIN: Response keys:", Object.keys(response));
+      console.log("LOGIN: idToken:", response.idToken ? `✓ ${response.idToken.substring(0, 20)}...` : "✗ missing");
+      console.log("LOGIN: uid:", response.uid);
+      
+      // Set authentication - this should save token and uid to AsyncStorage
+      console.log("\nLOGIN: Calling authCtx.authenticate()...");
       authCtx.authenticate(response.idToken, response.uid);
+      console.log("✓ LOGIN: authenticate() called");
+      
+      // Verify it was saved to AsyncStorage
+      const savedToken = await AsyncStorage.getItem("token");
+      const savedUid = await AsyncStorage.getItem("uid");
+      console.log("LOGIN: Verification - token saved:", savedToken ? "✓" : "✗");
+      console.log("LOGIN: Verification - uid saved:", savedUid ? "✓" : "✗");
+      
       authCtx.mailsetter(email);
       
       // Try to fetch user data but don't block if it fails
       try {
+        console.log("\nLOGIN: Fetching user data from Firestore...");
         const userData = await getUserData(response.uid);
-        console.log("Fetched user data from Firestore:", userData);
+        console.log("LOGIN: Fetched user data:", userData ? "✓" : "✗");
+        
         if (userData) {
           authCtx.setUserData(userData);
           // Store userData in AsyncStorage for persistence
           await AsyncStorage.setItem("userData", JSON.stringify(userData));
+          console.log("✓ LOGIN: Stored userData to AsyncStorage, isAdmin:", userData.isAdmin);
+          
+          // Store isAdmin separately for quick access
+          if (userData.isAdmin !== undefined) {
+            await AsyncStorage.setItem("isAdmin", JSON.stringify(userData.isAdmin));
+            console.log("✓ LOGIN: Stored isAdmin to AsyncStorage:", userData.isAdmin);
+          }
           
           if (userData.phoneNumber) {
             authCtx.phoneNumberSetter(userData.phoneNumber);
             await AsyncStorage.setItem("phoneNumber", userData.phoneNumber);
+            console.log("✓ LOGIN: Stored phoneNumber");
           }
           if (userData.displayName) {
             authCtx.LoginNameSetter(userData.displayName);
             await AsyncStorage.setItem("displayName", userData.displayName);
+            console.log("✓ LOGIN: Stored displayName");
           }
           if (userData.email) {
             await AsyncStorage.setItem("userEmail", userData.email);
+            console.log("✓ LOGIN: Stored userEmail");
           }
         }
       } catch (userDataError) {
-        console.log("Could not fetch user data:", userDataError.message);
+        console.log("⚠ LOGIN: Could not fetch user data:", userDataError.message);
         // Continue anyway - user data will be empty but user is logged in
       }
       
+      console.log("========== LOGIN: Complete - User should be logged in ==========\n");
+      
     } catch (error) {
-      console.log("Login error:", error.message);
+      console.log("\n✗ LOGIN ERROR:", error.message);
+      console.log("Error type:", error.code || "unknown");
       
       let errorTitle = "Login Failed";
       let errorMessage = error.message;

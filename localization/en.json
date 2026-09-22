@@ -72,7 +72,7 @@
     "veterinary": "Veterinary",
     "veterinaryDescription": "Veterinary is a branch of medical science that deals with the prevention, management, diagnosis and treatment of diseases, disorders and injuries in animals. Along with this it deals with research and production development on animal husbandry, breeding, reproduction and nutrition.",
     "testimonials": "Testimonials",
-    "testimonialsDescription": "Every animal has his or her story, his or her thoughts, daydreams, and interests. All feel joy and love, pain and fear, as we now know beyond any shadow of a doubt. All deserve that the human animal afford them the respect of being cared for with great consideration for those interests or left in peace. Ingrid Newkirk― British Activist"
+    "testimonialsDescription": "Every animal has his or her story, his or her thoughts, daydreams, and interests. All feel joy and love, pain and fear, as we now know beyond any shadow of a doubt. All deserve that the human animal afford them the respect of being cared for with great consideration for those interests or left in peace. --- Mahatma Gandhi ---"
   },
   "hydroponics": {
     "variousStagesOfHydroponicGrassProduction": "Various Stages of Hydroponic Grass Production",
@@ -103,15 +103,15 @@
     "motivatingAndTalented": "Motivating and Talented",
     "livestockProductionManagement": "Livestock Production Management",
     "professorDrivenToInspireStudents": "Professor is working to inspire students to pursue academic and personal excellence. Consistently strive to create a challenging and engaging learning environment that enables students to become lifelong learners and practitioners. Has",
-    "has20YearsOfExperience": "Has 20 years of experience in Dairy Cattle and Sheep production.",
+    "has20YearsOfExperience": "Has 28 years of experience in Dairy Cattle and Sheep production.",
     "detailsOf": "Education",
     "academic": "Qualifications",
     "qualifications": "Details",
     "dateOfJoining": "Date of Joining",
     "dateOfLeaving": "Date of Leaving",
     "nameOfSchool": "School / College Name",
-    "nameOfBoard": "Board Name",
-    "andhraPradeshAgrlUniversity": "Andhra Pradesh Agricultural University",
+    "nameOfBoard": "University",
+    "andhraPradeshAgrlUniversity": "Acharya N.G. Ranga Agricultural University",
     "september1988": "September - 1988",
     "august1993": "August - 1993",
     "july1993": "July - 1993",
@@ -346,7 +346,7 @@
     "dairyProject": "Dairy Project (Cost)",
     "environmentalDairyHousing": "Environmental Dairy Housing",
     "housing": "Housing",
-    "organicDairy": "Organic Dairy",
+    "organicDairy": "Organic Dairy Farming",
     "selectionOfGoodAnimals": "Selection of Good Animals",
     "wallowingTank": "Wallowing Tank",
     "calfRearing": "Calf Rearing",
@@ -414,7 +414,7 @@
     "recordKeepingGivesAnIdea": "record keeping gives an idea when the cow is expected to come in heat based on the fact that the average cow comes in heat every 21 days. A cow should be observed twice daily, once in early morning and once in the late evening for signs of heat between 17-18 days after last oestrus cycle. Some of the heat symptoms or bellowing, frequent urination, smelling other cows white mucous discharge from vulva and attempts to mount other cows."
   },
   "housing": {
-    "housing": "Housing",
+    "housing": "Dairy Housing",
     "longViewOfAnimalShed": "Long view of animal shed",
     "tailToTailHousingAsbestosRoofing": "Tail to Tail housing asbestos roofing",
     "overhangToPreventRain": "Overhang to prevent rain",
@@ -435,9 +435,9 @@
     "organicFarm": "Organic Farm",
     "gomutraCollectionOrganicFlooring": "Gomutra collection organic flooring",
     "animalShed": "Animal Shed",
-    "organicDairy": "Organic Dairy",
+    "organicDairy": "Organic Dairy Farming",
     "organicDairying": "Organic Dairying",
-    "isAnEnvironmentalFriendlyMethod": "Organic dairying is an environmental friendly method of fodder and livestock production without use of synthetic fertilizers growth hormones, antibiotics, chemical drugs, synthetic pesticides. The principle of organic forming is",
+    "isAnEnvironmentalFriendlyMethod": " is an environmental friendly method of fodder and livestock production without use of synthetic fertilizers growth hormones, antibiotics, chemical drugs, synthetic pesticides. The principle of organic forming is",
     "sustainableEcologicallySound": "sustainable, ecologically sound and viable, socially justified and humane",
     "productionSystem": "production system"
   },

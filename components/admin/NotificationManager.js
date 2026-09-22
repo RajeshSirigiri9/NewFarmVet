@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,16 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
 import {
   sendNotificationToAllUsers,
   getAllNotifications,
   deleteNotification,
 } from "../../util/adminService";
+import { sendBulkPushNotifications } from "../../util/pushNotifications";
+import { ToastContext } from "../../util/ToastNotification";
 
 const NotificationManager = () => {
   const [title, setTitle] = useState("");
@@ -23,6 +28,7 @@ const NotificationManager = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [errors, setErrors] = useState({ title: "", message: "" });
+  const toastContext = useContext(ToastContext);
 
   useEffect(() => {
     fetchNotifications();
@@ -31,12 +37,100 @@ const NotificationManager = () => {
   const fetchNotifications = async () => {
     try {
       setIsFetching(true);
-      const data = await getAllNotifications();
-      setNotifications(data);
+      console.log("\nNotificationManager: Fetching notifications...");
+
+      // Check if currentUser is already available
+      let currentUser = firebase.auth().currentUser;
+      console.log(
+        "NotificationManager: CurrentUser check:",
+        currentUser ? currentUser.uid : "null",
+      );
+
+      if (!currentUser) {
+        console.log(
+          "NotificationManager: No currentUser, attempting to sign in with email and cached token...",
+        );
+
+        // Try to get email and password from AsyncStorage
+        // Since we don't have password, we'll try to use the token directly
+        const storedEmail = await AsyncStorage.getItem("userEmail");
+
+        if (storedEmail) {
+          console.log(
+            "NotificationManager: Found stored email, attempting to use it...",
+          );
+
+          // We can't re-signin without password, so let's just proceed
+          // The Firestore rules will need to be flexible enough to allow this
+          console.log(
+            "NotificationManager: Proceeding without Firebase Auth currentUser",
+          );
+          console.log(
+            "NotificationManager: Will rely on Firestore rules being readable or custom auth",
+          );
+        }
+      } else {
+        console.log(
+          "✓ NotificationManager: Using existing Firebase Auth session",
+        );
+      }
+
+      // Attempt to fetch notifications
+      try {
+        console.log("NotificationManager: Calling getAllNotifications()");
+        const data = await getAllNotifications();
+        console.log(
+          "✓ NotificationManager: Fetched",
+          data.length,
+          "notifications",
+        );
+        setNotifications(data);
+      } catch (firestoreError) {
+        // If Firestore auth fails, it's likely because firebase.auth().currentUser is null
+        // Try a different approach - query without relying on Firebase Auth
+        console.log(
+          "⚠ NotificationManager: Firestore query failed:",
+          firestoreError.message,
+        );
+
+        if (
+          firestoreError.message.includes("Missing or insufficient permissions")
+        ) {
+          console.log(
+            "NotificationManager: Permission error - likely due to null currentUser",
+          );
+          console.log(
+            "NotificationManager: This error suggests Firestore rules require Firebase Auth",
+          );
+          console.log(
+            "NotificationManager: Solution: Update Firestore rules to allow public reads",
+          );
+          Alert.alert(
+            "Admin Access Required",
+            "Please log out and log back in to refresh your Firebase Auth session.\n\nError: Firestore permissions issue",
+          );
+        } else {
+          throw firestoreError;
+        }
+      }
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.log("✗ NotificationManager Error:", error.message);
+      Alert.alert("Error Loading Notifications", error.message);
     }
     setIsFetching(false);
+  };
+
+  const handleReLogin = async () => {
+    try {
+      console.log("NotificationManager: User chosen to re-login");
+      await AsyncStorage.clear();
+      await firebase.auth().signOut();
+      Alert.alert("Logged Out", "Please log in again to refresh your session");
+      // The app should navigate back to login screen automatically
+    } catch (error) {
+      console.log("Logout error:", error);
+      Alert.alert("Error", "Failed to log out: " + error.message);
+    }
   };
 
   const validateForm = () => {
@@ -69,15 +163,62 @@ const NotificationManager = () => {
       return;
     }
 
+    // Check admin status before sending
+    console.log("NotificationManager: Checking admin status before sending...");
+    try {
+      const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+      const isAdmin = storedIsAdmin && JSON.parse(storedIsAdmin) === true;
+
+      if (!isAdmin) {
+        Alert.alert("Access Denied", "Only admins can send notifications");
+        console.log("NotificationManager: User is not admin, rejecting send");
+        return;
+      }
+
+      console.log(
+        "✓ NotificationManager: Admin status verified, sending notification",
+      );
+    } catch (error) {
+      console.log(
+        "NotificationManager: Error checking admin status:",
+        error.message,
+      );
+      Alert.alert("Error", "Could not verify admin status");
+      return;
+    }
+
     setIsLoading(true);
     try {
+      console.log("NotificationManager: Sending notification...");
       await sendNotificationToAllUsers(title, message);
+      console.log("✓ NotificationManager: Notification saved to Firestore");
+      
+      // Show success toast
+      if (toastContext) {
+        toastContext.showToast("✓ Notification sent to all users!", 'success', 3000);
+      }
+      
+      // Also send push notifications to all user devices (non-blocking)
+      console.log("NotificationManager: Sending push notifications to devices...");
+      sendBulkPushNotifications(title, message).catch((err) => {
+        console.log("⚠ Warning: Push notifications failed (non-critical):", err.message);
+      });
+      
       Alert.alert("Success", "Notification sent to all users!");
       setTitle("");
       setMessage("");
       setErrors({ title: "", message: "" });
       fetchNotifications();
     } catch (error) {
+      console.log(
+        "✗ NotificationManager: Error sending notification:",
+        error.message,
+      );
+      
+      // Show error toast
+      if (toastContext) {
+        toastContext.showToast("✗ Failed to send notification", 'error', 3000);
+      }
       Alert.alert("Error", error.message);
     }
     setIsLoading(false);
@@ -90,9 +231,27 @@ const NotificationManager = () => {
         text: "Delete",
         onPress: async () => {
           try {
+            // Verify admin before deleting
+            const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+            const isAdmin = storedIsAdmin && JSON.parse(storedIsAdmin) === true;
+
+            if (!isAdmin) {
+              Alert.alert(
+                "Access Denied",
+                "Only admins can delete notifications",
+              );
+              return;
+            }
+
+            console.log(
+              "NotificationManager: Deleting notification:",
+              notificationId,
+            );
             await deleteNotification(notificationId);
+            console.log("✓ NotificationManager: Notification deleted");
             fetchNotifications();
           } catch (error) {
+            console.log("✗ NotificationManager Error deleting:", error.message);
             Alert.alert("Error", error.message);
           }
         },
@@ -124,9 +283,7 @@ const NotificationManager = () => {
     <View style={styles.container}>
       {/* Send Notification Form */}
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>
-          📢 Send Notification to All Users
-        </Text>
+        <Text style={styles.formTitle}>📢 Send Notification to All Users</Text>
 
         <View style={styles.inputGroup}>
           <TextInput
@@ -139,9 +296,7 @@ const NotificationManager = () => {
             }}
             maxLength={100}
           />
-          {errors.title && (
-            <Text style={styles.errorText}>{errors.title}</Text>
-          )}
+          {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
           <Text style={styles.charCount}>{title.length}/100</Text>
         </View>
 
@@ -156,8 +311,7 @@ const NotificationManager = () => {
             value={message}
             onChangeText={(value) => {
               setMessage(value);
-              if (errors.message)
-                setErrors({ ...errors, message: "" });
+              if (errors.message) setErrors({ ...errors, message: "" });
             }}
             maxLength={1000}
             multiline
@@ -170,35 +324,26 @@ const NotificationManager = () => {
         </View>
 
         <TouchableOpacity
-          style={[
-            styles.sendButton,
-            isLoading && styles.buttonDisabled,
-          ]}
+          style={[styles.sendButton, isLoading && styles.buttonDisabled]}
           onPress={handleSendNotification}
           disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.sendButtonText}>
-              Send to All Users
-            </Text>
+            <Text style={styles.sendButtonText}>Send to All Users</Text>
           )}
         </TouchableOpacity>
       </View>
 
       {/* Recent Notifications */}
       <View style={styles.listCard}>
-        <Text style={styles.listTitle}>
-          Recent Notifications
-        </Text>
+        <Text style={styles.listTitle}>Recent Notifications</Text>
 
         {isFetching ? (
           <ActivityIndicator color="#27ae60" />
         ) : notifications.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No notifications sent yet
-          </Text>
+          <Text style={styles.emptyText}>No notifications sent yet</Text>
         ) : (
           <FlatList
             data={notifications}

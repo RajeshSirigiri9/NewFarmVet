@@ -4,7 +4,7 @@ import { ScrollView } from "react-native-virtualized-view";
 //import { Platform } from "react-native";
 
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
 
@@ -16,6 +16,9 @@ import {
   Image,
 } from "react-native";
 import i18n from "../../localization/i18n";
+import { getContentByLocation } from "../../util/adminService";
+import { extractYoutubeId } from "../../util/contentHelper";
+import YoutubePlayer from "react-native-youtube-iframe";
 
 const environmentalList = [
   {

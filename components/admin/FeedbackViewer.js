@@ -10,7 +10,13 @@ import {
   Modal,
   ScrollView,
 } from "react-native";
-import { getAllFeedbackAdmin, updateFeedbackStatusAdmin } from "../../util/adminService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import firebase from "firebase/compat/app";
+import "firebase/compat/auth";
+import {
+  getAllFeedbackAdmin,
+  updateFeedbackStatusAdmin,
+} from "../../util/adminService";
 
 const FeedbackViewer = () => {
   const [feedbackList, setFeedbackList] = useState([]);
@@ -25,21 +31,104 @@ const FeedbackViewer = () => {
   const fetchFeedback = async () => {
     try {
       setIsLoading(true);
-      const data = await getAllFeedbackAdmin();
-      setFeedbackList(data);
+      console.log("\nFeedbackViewer: Fetching feedback...");
+
+      // Check if currentUser is already available
+      let currentUser = firebase.auth().currentUser;
+      console.log(
+        "FeedbackViewer: CurrentUser check:",
+        currentUser ? currentUser.uid : "null",
+      );
+
+      if (!currentUser) {
+        console.log(
+          "FeedbackViewer: No currentUser, attempting to sign in with email and cached token...",
+        );
+
+        // Try to get email from AsyncStorage
+        const storedEmail = await AsyncStorage.getItem("userEmail");
+
+        if (storedEmail) {
+          console.log(
+            "FeedbackViewer: Found stored email, attempting to use it...",
+          );
+          console.log(
+            "FeedbackViewer: Proceeding without Firebase Auth currentUser",
+          );
+          console.log(
+            "FeedbackViewer: Will rely on Firestore rules being readable",
+          );
+        }
+      } else {
+        console.log("✓ FeedbackViewer: Using existing Firebase Auth session");
+      }
+
+      // Attempt to fetch feedback
+      try {
+        console.log("FeedbackViewer: Calling getAllFeedbackAdmin()");
+        const data = await getAllFeedbackAdmin();
+        console.log("✓ FeedbackViewer: Fetched", data.length, "feedback items");
+        setFeedbackList(data);
+      } catch (firestoreError) {
+        console.log(
+          "⚠ FeedbackViewer: Firestore query failed:",
+          firestoreError.message,
+        );
+
+        if (
+          firestoreError.message.includes("Missing or insufficient permissions")
+        ) {
+          console.log(
+            "FeedbackViewer: Permission error - likely due to Firestore rules",
+          );
+          Alert.alert(
+            "Access Required",
+            "Firestore rules may need to be updated to allow feedback access.\n\nPlease contact admin.",
+          );
+        } else {
+          throw firestoreError;
+        }
+      }
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.log("✗ FeedbackViewer Error:", error.message);
+      Alert.alert("Error Loading Feedback", error.message);
     }
     setIsLoading(false);
   };
 
   const handleStatusChange = async (feedbackId, newStatus) => {
+    // Check admin status before updating
+    console.log(
+      "FeedbackViewer: Checking admin status before updating feedback...",
+    );
+    try {
+      const storedIsAdmin = await AsyncStorage.getItem("isAdmin");
+      const isAdmin = storedIsAdmin && JSON.parse(storedIsAdmin) === true;
+
+      if (!isAdmin) {
+        Alert.alert("Access Denied", "Only admins can update feedback");
+        console.log("FeedbackViewer: User is not admin, rejecting update");
+        return;
+      }
+
+      console.log("✓ FeedbackViewer: Admin status verified, updating feedback");
+    } catch (error) {
+      console.log(
+        "FeedbackViewer: Error checking admin status:",
+        error.message,
+      );
+      Alert.alert("Error", "Could not verify admin status");
+      return;
+    }
+
     try {
       await updateFeedbackStatusAdmin(feedbackId, newStatus);
+      console.log("✓ FeedbackViewer: Feedback updated to:", newStatus);
       fetchFeedback();
       setSelectedFeedback(null);
       Alert.alert("Success", `Feedback marked as ${newStatus}`);
     } catch (error) {
+      console.log("✗ FeedbackViewer Error updating feedback:", error.message);
       Alert.alert("Error", error.message);
     }
   };
@@ -85,7 +174,9 @@ const FeedbackViewer = () => {
         {item.message}
       </Text>
       <Text style={styles.feedbackDate}>
-        {item.createdAt?.toDate ? new Date(item.createdAt.toDate()).toLocaleDateString() : "N/A"}
+        {item.createdAt?.toDate
+          ? new Date(item.createdAt.toDate()).toLocaleDateString()
+          : "N/A"}
       </Text>
     </TouchableOpacity>
   );
@@ -124,8 +215,8 @@ const FeedbackViewer = () => {
               filterStatus === "pending" && styles.filterButtonTextActive,
             ]}
           >
-            Pending (
-            {feedbackList.filter((f) => f.status === "pending").length})
+            Pending ({feedbackList.filter((f) => f.status === "pending").length}
+            )
           </Text>
         </TouchableOpacity>
 
@@ -150,7 +241,11 @@ const FeedbackViewer = () => {
 
       {/* Feedback List */}
       {isLoading ? (
-        <ActivityIndicator size="large" color="#27ae60" style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color="#27ae60"
+          style={{ marginTop: 20 }}
+        />
       ) : filteredFeedback.length === 0 ? (
         <Text style={styles.emptyText}>No feedback found</Text>
       ) : (
@@ -178,39 +273,57 @@ const FeedbackViewer = () => {
               <View
                 style={[
                   styles.modalStatusBadge,
-                  { backgroundColor: getStatusBadgeColor(selectedFeedback?.status) },
+                  {
+                    backgroundColor: getStatusBadgeColor(
+                      selectedFeedback?.status,
+                    ),
+                  },
                 ]}
               >
-                <Text style={styles.modalStatusText}>{selectedFeedback?.status}</Text>
+                <Text style={styles.modalStatusText}>
+                  {selectedFeedback?.status}
+                </Text>
               </View>
 
               <Text style={styles.modalSectionTitle}>Message:</Text>
-              <Text style={styles.modalMessage}>{selectedFeedback?.message}</Text>
+              <Text style={styles.modalMessage}>
+                {selectedFeedback?.message}
+              </Text>
 
               <Text style={styles.modalDate}>
                 Submitted:{" "}
-                {selectedFeedback?.createdAt?.toDate ? new Date(selectedFeedback.createdAt.toDate()).toLocaleString() : "N/A"}
+                {selectedFeedback?.createdAt?.toDate
+                  ? new Date(
+                      selectedFeedback.createdAt.toDate(),
+                    ).toLocaleString()
+                  : "N/A"}
               </Text>
 
               <Text style={styles.modalSectionTitle}>Change Status:</Text>
               <View style={styles.statusButtonsContainer}>
                 <TouchableOpacity
                   style={[styles.statusChangeButton, styles.pendingButton]}
-                  onPress={() => handleStatusChange(selectedFeedback?.id, "pending")}
+                  onPress={() =>
+                    handleStatusChange(selectedFeedback?.id, "pending")
+                  }
                 >
                   <Text style={styles.statusChangeButtonText}>Pending</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.statusChangeButton, styles.reviewedButton]}
-                  onPress={() => handleStatusChange(selectedFeedback?.id, "reviewed")}
+                  onPress={() =>
+                    handleStatusChange(selectedFeedback?.id, "reviewed")
+                  }
                 >
                   <Text style={styles.statusChangeButtonText}>Reviewed</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.statusChangeButton, styles.resolvedButton]}
-                  onPress={() => handleStatusChange(selectedFeedback?.id, "resolved")}
+                  onPress={() =>
+                    handleStatusChange(selectedFeedback?.id, "resolved")
+                  }
                 >
                   <Text style={styles.statusChangeButtonText}>Resolved</Text>
                 </TouchableOpacity>

@@ -14,16 +14,37 @@
 // },
 
 import React from "react";
-import { StyleSheet, Text, View, ScrollView } from "react-native";
-import { useState, useCallback, useRef } from "react";
+import { StyleSheet, Text, View, ScrollView, Image } from "react-native";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button, Alert } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { Dimensions } from "react-native";
 import i18n from "../../localization/i18n";
+import { getContentByLocation } from "../../util/adminService";
+import { extractYoutubeId } from "../../util/contentHelper";
 const { width, height } = Dimensions.get("window");
 
 export default function Dairy({ navigation }) {
   const [playing, setPlaying] = useState(false);
+  const [adminContent, setAdminContent] = useState([]);
+  const [isLoadingContent, setIsLoadingContent] = useState(true);
+
+  useEffect(() => {
+    fetchDairyContent();
+  }, []);
+
+  const fetchDairyContent = async () => {
+    try {
+      setIsLoadingContent(true);
+      const content = await getContentByLocation("cattle", "Dairy");
+      setAdminContent(content || []);
+    } catch (error) {
+      console.log("Error fetching Dairy content:", error.message);
+      setAdminContent([]);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
 
   const onStateChange = useCallback((state) => {
     if (state === "ended") {
@@ -36,9 +57,79 @@ export default function Dairy({ navigation }) {
     setPlaying((prev) => !prev);
   }, []);
 
+  const renderAdminContent = (item) => {
+    const videoId = item.videoUrl ? extractYoutubeId(item.videoUrl) : null;
+
+    return (
+      <View
+        key={item.id}
+        style={{
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 20,
+        }}
+      >
+        {item.imageUrl && (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={{
+              width: 300,
+              height: 200,
+              borderRadius: 8,
+              marginBottom: 10,
+            }}
+            resizeMode="cover"
+          />
+        )}
+        <View style={styles.videoContainer}>
+          <View style={styles.videoHeader}>
+            <Text style={styles.videoName}>{item.title}</Text>
+          </View>
+          <Text
+            style={{
+              paddingHorizontal: 10,
+              marginVertical: 10,
+              color: "#555",
+              fontSize: 12,
+            }}
+          >
+            {item.description}
+          </Text>
+          {videoId ? (
+            <YoutubePlayer
+              height={210}
+              width={300}
+              play={playing}
+              videoId={videoId}
+              onChangeState={onStateChange}
+            />
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <>
       <ScrollView style={styles.videoStyle}>
+        {/* Admin-created content */}
+        {adminContent.length > 0 && (
+          <View>
+            {adminContent.map((item) => renderAdminContent(item))}
+            <Text
+              style={{
+                textAlign: "center",
+                marginVertical: 20,
+                fontSize: 14,
+                fontWeight: "bold",
+                color: "#970303",
+              }}
+            >
+              --- Standard Content ---
+            </Text>
+          </View>
+        )}
+
         <Text
           onPress={() => navigation.navigate("Cattle")}
           style={{

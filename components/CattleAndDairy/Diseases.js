@@ -3,11 +3,9 @@ import { ScrollView } from "react-native";
 const { width, height } = Dimensions.get("window");
 //import { Platform } from "react-native";
 
-
-import React from "react";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
-
   View,
   FlatList,
   StyleSheet,
@@ -16,6 +14,9 @@ import {
   Image,
 } from "react-native";
 import i18n from "../../localization/i18n";
+import { getContentByLocation } from "../../util/adminService";
+import { extractYoutubeId } from "../../util/contentHelper";
+import YoutubePlayer from "react-native-youtube-iframe";
 
 const diesasesList = [
   {
@@ -56,6 +57,115 @@ const diesasesList = [
 ];
 
 export default function Diseases({ navigation }) {
+  const [adminContent, setAdminContent] = useState([]);
+  const [isLoadingContent, setIsLoadingContent] = useState(true);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    fetchDiseasesContent();
+  }, []);
+
+  const fetchDiseasesContent = async () => {
+    try {
+      setIsLoadingContent(true);
+      const content = await getContentByLocation("cattle", "Diseases");
+      setAdminContent(content || []);
+    } catch (error) {
+      console.log("Error fetching Diseases content:", error.message);
+      setAdminContent([]);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
+  const combinedData = [
+    { id: "header", isAdmin: false, isHeader: true },
+    ...adminContent.map((item) => ({ ...item, isAdmin: true })),
+    ...diesasesList.map((item) => ({ ...item, isAdmin: false })),
+  ];
+
+  const renderListItem = ({ item }) => {
+    if (item.isHeader) {
+      return (
+        <View style={{ alignItems: "center", marginBottom: 10 }}>
+          <Text
+            style={{
+              color: "#9a0202",
+              fontSize: 18,
+              fontWeight: "bold",
+              marginTop: 16,
+            }}
+          >
+            {i18n.t("diseases.diseases")}
+          </Text>
+        </View>
+      );
+    } else if (item.isAdmin) {
+      const videoId = item.videoUrl ? extractYoutubeId(item.videoUrl) : null;
+      return (
+        <View style={{ alignItems: "center" }}>
+          <View style={styles.imageHeader}>
+            <Text style={styles.imageName}>{item.title}</Text>
+          </View>
+          <View
+            style={[styles.imageContainer, { justifyContent: "space-evenly" }]}
+          >
+            {item.imageUrl && (
+              <Image
+                source={{ uri: item.imageUrl }}
+                style={{
+                  width: "100%",
+                  height: 180,
+                  borderRadius: 5,
+                  marginBottom: 10,
+                }}
+                resizeMode="cover"
+              />
+            )}
+            <Text
+              style={{
+                padding: 10,
+                fontSize: 12,
+                color: "#555",
+                textAlign: "center",
+              }}
+            >
+              {item.description}
+            </Text>
+            {videoId && (
+              <YoutubePlayer
+                height={210}
+                width={300}
+                play={playing}
+                videoId={videoId}
+                onChangeState={(state) => {
+                  if (state === "ended") {
+                    setPlaying(false);
+                  }
+                }}
+              />
+            )}
+          </View>
+        </View>
+      );
+    } else {
+      return (
+        <View style={{ alignItems: "center" }}>
+          <View style={styles.imageHeader}>
+            <Text style={styles.imageName}>{i18n.t(item.description)}</Text>
+          </View>
+          <View
+            style={[styles.imageContainer, { justifyContent: "space-evenly" }]}
+          >
+            <Image
+              source={item.img}
+              style={{ width: "100%", height: 180, borderRadius: 5 }}
+            />
+          </View>
+        </View>
+      );
+    }
+  };
   return (
     // <ScrollView
     //   // nestedScrollEnabled={true}
@@ -66,50 +176,10 @@ export default function Diseases({ navigation }) {
     //   // vertical={true}
     // >
     <View style={styles.screen}>
-      <Text
-        style={{
-          color: "#9a0202",
-          fontSize: 18,
-          fontWeight: "bold",
-          marginTop: 16,
-        }}
-      >
-        {i18n.t("diseases.diseases")}
-      </Text>
-      <Text
-        style={{
-          textAlign: "center",
-          margin: 15,
-          maxWidth: 340,
-          fontWeight: "500",
-        }}
-      >
-        {i18n.t("diseases.theDiseases")}
-      </Text>
       <FlatList
-        data={diesasesList}
-        //numColumns={width > 400 ? 2 : 1}
-        renderItem={({ item }) => (
-          <View style={{ alignItems: "center" }}>
-            {/* <View style={styles.imageHeader}>
-              <Text style={styles.imageName}>{item.description}</Text>
-            </View> */}
-            <View
-              style={[
-                styles.imageContainer,
-                {
-                  justifyContent: "space-evenly",
-                },
-              ]}
-            >
-              <Image
-                source={item.img}
-                style={{ width: "100%", height: 180, borderRadius: 5 }}
-              />
-            </View>
-          </View>
-        )}
-        keyExtractor={(item) => item.id}
+        data={combinedData}
+        renderItem={renderListItem}
+        keyExtractor={(item, index) => item.id || `admin-${index}`}
       />
     </View>
     // </ScrollView>
@@ -142,7 +212,7 @@ const styles = StyleSheet.create({
     width: width < 890 ? 300 : 440,
     alignItems: "center",
     elevation: 4,
-    overflow: "hidden" ,
+    overflow: "hidden",
     shadowColor: "#c12299",
     shadowOpacity: 0.35,
     shadowOffset: { width: 2, height: 4 },
